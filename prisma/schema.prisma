@@ -1,0 +1,86 @@
+// Schema do painel de gestão do Instagram.
+// Docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// Um post (ou story) do Instagram com suas métricas.
+// SQLite não tem enum nativo, então mediaType/category/source são String.
+model Post {
+  id           String   @id @default(cuid())
+  igId         String?  @unique // id da mídia na Graph API (null = manual)
+  caption      String?
+  mediaType    String // IMAGE | VIDEO | CAROUSEL_ALBUM | REELS | STORY
+  category     String? // tema definido por você: "Dica", "Bastidores", "Promo"...
+  permalink    String?
+  mediaUrl     String?
+  thumbnailUrl String?
+  postedAt     DateTime
+
+  // Métricas
+  likes           Int @default(0)
+  comments        Int @default(0)
+  saves           Int @default(0)
+  shares          Int @default(0)
+  reach           Int @default(0)
+  impressions     Int @default(0)
+  videoViews      Int @default(0)
+  followersAtPost Int @default(0) // seguidores no momento do post (p/ taxa de engajamento)
+
+  source    String   @default("manual") // manual | csv | instagram
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([postedAt])
+  @@index([mediaType])
+  @@index([category])
+}
+
+// Snapshot diário da conta para o gráfico de evolução de seguidores.
+model AccountSnapshot {
+  id        String   @id @default(cuid())
+  date      DateTime @unique
+  followers Int
+  follows   Int      @default(0)
+  reach     Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+// Regra de automação: quando keyword aparecer num comentário, dispara replyText.
+model AutoRule {
+  id           String       @id @default(cuid())
+  name         String       @default("")
+  keywords     String       // palavras-chave separadas por vírgula
+  replyText    String       @default("") // resposta pública no comentário (vazio = não responde)
+  sendDm       Boolean      @default(false)
+  dmText       String       @default("") // texto do direct
+  mediaId      String? // id da mídia (igId) à qual a regra se restringe; null = todos os posts
+  isActive     Boolean      @default(true)
+  triggerCount Int          @default(0)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  logs         CommentLog[]
+
+  @@index([mediaId])
+}
+
+// Log de cada comentário processado pelas regras.
+model CommentLog {
+  id          String    @id @default(cuid())
+  igCommentId String    @unique
+  igPostId    String
+  text        String
+  username    String    @default("")
+  senderId    String    @default("") // IGSID do comentarista (para DM)
+  repliedAt   DateTime?
+  dmSentAt    DateTime?
+  ruleId      String?
+  rule        AutoRule? @relation(fields: [ruleId], references: [id])
+  createdAt   DateTime  @default(now())
+}

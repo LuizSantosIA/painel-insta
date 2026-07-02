@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+:root {
+  --background: #080d1a;
+  --surface: #0e1628;
+  --surface-2: #162038;
+  --border: #1e3058;
+  --foreground: #e8edf8;
+  --muted: #7a92be;
+  --brand: #2563EB;
+  --brand-2: #4338CA;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-brand: var(--brand);
+  --color-brand-2: var(--brand-2);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+
+.brand-gradient {
+  background: linear-gradient(135deg, #60A5FA 0%, #2563EB 45%, #4338CA 100%);
+}
+
+.brand-text {
+  background: linear-gradient(135deg, #60A5FA 0%, #2563EB 45%, #4338CA 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 8px;
+}
