@@ -8,11 +8,13 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  Legend,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
+import { fmtBRL } from "@/lib/financeiro";
 
 function useMounted() {
   const [mounted, setMounted] = useState(false);
@@ -252,6 +254,75 @@ export function HorizontalBarChart({
             <Cell key={i} fill={d.color ?? "#4F8CFF"} />
           ))}
         </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+export type MrrHistoricoItem = {
+  mes: string;
+  INNOBI: number;
+  MENTORIA: number;
+  SERVICOS: number;
+};
+
+const MRR_COLORS = { INNOBI: "#4F8CFF", MENTORIA: "#7C5CFF", SERVICOS: "#00D4FF" };
+const MRR_LABELS = { INNOBI: "Innobi", MENTORIA: "Mentoria", SERVICOS: "Serviços" };
+
+export function MrrStackedBarChart({ data }: { data: MrrHistoricoItem[] }) {
+  const mounted = useMounted();
+  if (!mounted) return <div style={{ height: 220 }} className="rounded-2xl animate-pulse" />;
+
+  return (
+    <ResponsiveContainer width="100%" height={220}>
+      <BarChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+        <CartesianGrid stroke={GRID_COLOR} vertical={false} strokeOpacity={0.6} />
+        <XAxis dataKey="mes" tick={AXIS_STYLE} tickLine={false} axisLine={false} />
+        <YAxis
+          tick={AXIS_STYLE}
+          tickLine={false}
+          axisLine={false}
+          width={64}
+          tickFormatter={(v: number) => v === 0 ? "0" : `R$${(v / 100).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`}
+        />
+        <Tooltip
+          cursor={{ fill: "rgba(79,140,255,0.05)", radius: 8 }}
+          content={({ active, payload, label }) => {
+            if (!active || !payload?.length) return null;
+            return (
+              <div style={{
+                background: "rgba(15,23,42,0.96)",
+                border: "1px solid rgba(79,140,255,0.2)",
+                borderRadius: 14,
+                padding: "12px 16px",
+                boxShadow: "0 16px 48px rgba(0,0,0,0.4)",
+              }}>
+                <p style={{ color: "#6b82a8", fontSize: 11, marginBottom: 8 }}>{label}</p>
+                {payload.map((p) => (
+                  <div key={String(p.dataKey)} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: p.fill, display: "inline-block" }} />
+                    <span style={{ color: "#c8d4f0", fontSize: 12 }}>{MRR_LABELS[p.dataKey as keyof typeof MRR_LABELS]}</span>
+                    <span style={{ color: "#f1f5ff", fontSize: 12, fontWeight: 600, marginLeft: "auto" }}>{fmtBRL(p.value as number)}</span>
+                  </div>
+                ))}
+              </div>
+            );
+          }}
+        />
+        <Legend
+          formatter={(value) => <span style={{ color: "#6b82a8", fontSize: 11 }}>{MRR_LABELS[value as keyof typeof MRR_LABELS]}</span>}
+          wrapperStyle={{ paddingTop: 8 }}
+        />
+        {(["INNOBI", "MENTORIA", "SERVICOS"] as const).map((key, i, arr) => (
+          <Bar
+            key={key}
+            dataKey={key}
+            stackId="mrr"
+            fill={MRR_COLORS[key]}
+            radius={i === arr.length - 1 ? [6, 6, 0, 0] : [0, 0, 0, 0]}
+            maxBarSize={40}
+          />
+        ))}
       </BarChart>
     </ResponsiveContainer>
   );

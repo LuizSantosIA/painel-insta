@@ -88,20 +88,21 @@ model CommentLog {
 // ─── CRM ────────────────────────────────────────────────────────────────────
 
 model Client {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   name      String
   email     String?
   phone     String?
   instagram String?
   company   String?
   notes     String?
-  status    String   @default("lead") // lead | active | inactive | lost
-  source    String?  // instagram | whatsapp | referral | organic | other
-  tags      String?  // separadas por vírgula
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  status    String    @default("lead") // lead | active | inactive | lost
+  source    String?   // instagram | whatsapp | referral | organic | other
+  tags      String?   // separadas por vírgula
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   deals     Deal[]
   tasks     Task[]
+  receitas  Receita[]
 }
 
 model Deal {
@@ -135,4 +136,47 @@ model Task {
   @@index([done])
   @@index([dueDate])
   @@index([clientId])
+}
+
+// ─── Financeiro ──────────────────────────────────────────────────────────────
+
+// linha: INNOBI | MENTORIA | SERVICOS
+// tipo:  RECORRENTE | PONTUAL
+// status: PREVISTA | CONFIRMADA | RECEBIDA | INADIMPLENTE
+// SQLite não suporta enum nativo — valores validados na camada de API (Zod).
+
+model Receita {
+  id            String    @id @default(cuid())
+  descricao     String
+  valorCentavos Int       // NUNCA Float — dinheiro sempre em centavos
+  linha         String    // INNOBI | MENTORIA | SERVICOS
+  tipo          String    // RECORRENTE | PONTUAL
+  status        String    @default("PREVISTA")
+  clienteId     String?
+  cliente       Client?   @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+  competencia   DateTime  // sempre dia 1 do mês, UTC
+  dataRecebida  DateTime?
+  criadoEm      DateTime  @default(now())
+  atualizadoEm  DateTime  @updatedAt
+
+  @@index([competencia, status])
+  @@index([linha])
+}
+
+model Despesa {
+  id            String   @id @default(cuid())
+  descricao     String
+  valorCentavos Int
+  recorrente    Boolean  @default(false)
+  competencia   DateTime // sempre dia 1 do mês, UTC
+  criadoEm      DateTime @default(now())
+
+  @@index([competencia])
+}
+
+// Configurações globais — singleton (id = "singleton")
+model Config {
+  id           String   @id @default("singleton")
+  saldoCaixa   Int      @default(0) // centavos — informado manualmente
+  atualizadoEm DateTime @updatedAt
 }
