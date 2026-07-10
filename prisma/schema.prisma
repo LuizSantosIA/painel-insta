@@ -84,3 +84,55 @@ model CommentLog {
   rule        AutoRule? @relation(fields: [ruleId], references: [id])
   createdAt   DateTime  @default(now())
 }
+
+// ─── CRM ────────────────────────────────────────────────────────────────────
+
+model Client {
+  id        String   @id @default(cuid())
+  name      String
+  email     String?
+  phone     String?
+  instagram String?
+  company   String?
+  notes     String?
+  status    String   @default("lead") // lead | active | inactive | lost
+  source    String?  // instagram | whatsapp | referral | organic | other
+  tags      String?  // separadas por vírgula
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deals     Deal[]
+  tasks     Task[]
+}
+
+model Deal {
+  id        String    @id @default(cuid())
+  title     String
+  value     Float     @default(0)
+  stage     String    @default("lead") // lead | contacted | proposal | negotiation | won | lost
+  notes     String?
+  dueDate   DateTime?
+  clientId  String?
+  client    Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([stage])
+  @@index([clientId])
+}
+
+model Task {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  dueDate     DateTime?
+  done        Boolean   @default(false)
+  priority    String    @default("medium") // low | medium | high
+  clientId    String?
+  client      Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([done])
+  @@index([dueDate])
+  @@index([clientId])
+}

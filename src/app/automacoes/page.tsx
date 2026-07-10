@@ -18,9 +18,9 @@ export default async function AutomacoesPage() {
     }));
 
   return (
-    <div className="max-w-3xl space-y-6">
-      <header className="flex items-center gap-3">
-        <div className="brand-gradient flex h-9 w-9 items-center justify-center rounded-xl">
+    <div className="max-w-2xl space-y-6">
+      <header className="flex items-start gap-3">
+        <div className="brand-gradient flex h-9 w-9 shrink-0 items-center justify-center rounded-xl">
           <Zap className="h-5 w-5 text-white" />
         </div>
         <div>
