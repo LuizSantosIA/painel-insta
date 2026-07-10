@@ -167,6 +167,25 @@ model Lead {
   @@index([estagio, proximaAcaoEm])
 }
 
+// ─── Compromissos ─────────────────────────────────────────────────────────────
+
+// Promessas feitas a terceiros — mais críticas que tarefas internas.
+// Um compromisso vencido não cumprido danifica a relação.
+
+model Compromisso {
+  id           String    @id @default(cuid())
+  descricao    String
+  para         String    // nome, @handle ou "cliente X" — para quem foi a promessa
+  prazoEm      DateTime
+  cumprido     Boolean   @default(false)
+  cumpridoEm   DateTime?
+  notas        String?
+  criadoEm     DateTime  @default(now())
+  atualizadoEm DateTime  @updatedAt
+
+  @@index([cumprido, prazoEm])
+}
+
 // ─── Financeiro ──────────────────────────────────────────────────────────────
 
 // linha: INNOBI | MENTORIA | SERVICOS

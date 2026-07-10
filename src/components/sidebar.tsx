@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Sun, Briefcase, Cpu,
-  Users, TrendingUp, CheckSquare, DollarSign, Activity,
+  Users, TrendingUp, CheckSquare, DollarSign, Activity, Flag,
   LayoutDashboard, Images, Sparkles, Plug,
   Clock, CalendarDays, Wand2, Bot, Zap, Camera,
 } from "lucide-react";
@@ -33,8 +33,9 @@ const NAV: NavItem[] = [
     sub: [
       { href: "/negocio/clientes",   label: "Clientes",   icon: Users },
       { href: "/negocio/pipeline",   label: "Pipeline",   icon: TrendingUp },
-      { href: "/negocio/saude",      label: "Saúde",      icon: Activity },
-      { href: "/negocio/tarefas",    label: "Tarefas",    icon: CheckSquare },
+      { href: "/negocio/saude",          label: "Saúde",         icon: Activity },
+      { href: "/negocio/compromissos",   label: "Compromissos",  icon: Flag },
+      { href: "/negocio/tarefas",        label: "Tarefas",       icon: CheckSquare },
       { href: "/negocio/financeiro", label: "Financeiro", icon: DollarSign },
     ],
   },
