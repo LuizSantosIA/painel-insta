@@ -138,6 +138,31 @@ model Task {
   @@index([clientId])
 }
 
+// ─── Pipeline de Leads ───────────────────────────────────────────────────────
+
+// estagio: LEAD | QUALIFICADO | PROPOSTA_ENVIADA | NEGOCIACAO | FECHADO | PERDIDO
+// origem:  INSTAGRAM_DM | INSTAGRAM_COMENTARIO | WHATSAPP | EMAIL | INDICACAO | OUTRO
+// linhaInteresse: INNOBI | MENTORIA | SERVICOS
+// proximaAcao + proximaAcaoEm: obrigatórios para estágios ativos (validados na API)
+
+model Lead {
+  id                    String    @id @default(cuid())
+  nome                  String
+  contato               String
+  estagio               String    @default("LEAD")
+  origem                String
+  linhaInteresse        String
+  valorEstimadoCentavos Int?
+  proximaAcao           String?
+  proximaAcaoEm         DateTime?
+  postOrigemId          String?   // preenchido pela Fase 3
+  notas                 String?
+  criadoEm              DateTime  @default(now())
+  atualizadoEm          DateTime  @updatedAt
+
+  @@index([estagio, proximaAcaoEm])
+}
+
 // ─── Financeiro ──────────────────────────────────────────────────────────────
 
 // linha: INNOBI | MENTORIA | SERVICOS
