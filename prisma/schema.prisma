@@ -63,6 +63,8 @@ model AutoRule {
   mediaId      String? // id da mídia (igId) à qual a regra se restringe; null = todos os posts
   isActive     Boolean      @default(true)
   triggerCount Int          @default(0)
+  createLead   Boolean      @default(false) // se true, cria Lead quando a regra dispara
+  leadLinha    String?      // INNOBI | MENTORIA | SERVICOS — obrigatório se createLead=true
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
   logs         CommentLog[]

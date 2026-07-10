@@ -149,6 +149,35 @@ async function processWebhook(body: {
           data: { triggerCount: { increment: 1 } },
         });
         console.log("[webhook] Log salvo no banco");
+
+        // Ponte Instagram → Lead: cria lead se a regra estiver configurada
+        if (rule.createLead && rule.leadLinha) {
+          const contato = username ? `@${username}` : senderId;
+          const jáExiste = await prisma.lead.findFirst({
+            where: { postOrigemId: mediaId, contato },
+          });
+
+          if (!jáExiste) {
+            const amanhã = new Date();
+            amanhã.setUTCDate(amanhã.getUTCDate() + 1);
+
+            await prisma.lead.create({
+              data: {
+                nome: username || senderId,
+                contato,
+                estagio: "LEAD",
+                origem: "INSTAGRAM_COMENTARIO",
+                linhaInteresse: rule.leadLinha,
+                proximaAcao: "Qualificar lead do Instagram",
+                proximaAcaoEm: amanhã,
+                postOrigemId: mediaId,
+              },
+            });
+            console.log("[webhook] Lead criado para", contato, "post", mediaId);
+          } else {
+            console.log("[webhook] Lead já existe para", contato, "— pulando");
+          }
+        }
       }
     }
   }

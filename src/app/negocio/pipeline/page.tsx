@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Loader2, X, Trash2, Pencil, AlertTriangle, ChevronRight, CheckCircle } from "lucide-react";
+import { Plus, Loader2, X, Trash2, Pencil, AlertTriangle, ChevronRight, CheckCircle, BarChart2 } from "lucide-react";
 import { fmtBRL, parseBRL } from "@/lib/financeiro";
 import { isAtrasado, ESTAGIOS_ATIVOS } from "@/lib/pipeline";
 
@@ -87,6 +87,12 @@ export default function PipelinePage() {
   // Delete
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  // Atribuição
+  const [atribuicaoOpen, setAtribuicaoOpen] = useState(false);
+  type AtribuicaoItem = { postOrigemId: string; total: number; fechados: number; perdidos: number };
+  const [atribuicao, setAtribuicao] = useState<AtribuicaoItem[]>([]);
+  const [atribuicaoLoading, setAtribuicaoLoading] = useState(false);
+
   const fetchLeads = useCallback(async () => {
     setLoading(true);
     const res = await fetch("/api/leads");
@@ -97,6 +103,16 @@ export default function PipelinePage() {
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
 
   const currentMes = new Date().toISOString().slice(0, 7);
+
+  async function toggleAtribuicao() {
+    if (!atribuicaoOpen && atribuicao.length === 0) {
+      setAtribuicaoLoading(true);
+      const res = await fetch("/api/leads/atribuicao");
+      if (res.ok) setAtribuicao(await res.json());
+      setAtribuicaoLoading(false);
+    }
+    setAtribuicaoOpen(v => !v);
+  }
 
   function openAdd(initialStage = "LEAD") {
     setEditingLead(null);
@@ -320,6 +336,63 @@ export default function PipelinePage() {
             {l.label}
           </button>
         ))}
+      </div>
+
+      {/* ── Atribuição IG ── */}
+      <div style={{ flexShrink: 0 }}>
+        <button
+          onClick={toggleAtribuicao}
+          style={{
+            display: "flex", alignItems: "center", gap: 8, background: "none", border: "none",
+            cursor: "pointer", color: atribuicaoOpen ? "#4F8CFF" : "#4a617f", fontSize: 12,
+            fontWeight: 600, padding: "4px 0", transition: "color 0.15s",
+          }}
+        >
+          <BarChart2 size={13} />
+          Leads por post do Instagram
+          <ChevronRight size={12} style={{ transform: atribuicaoOpen ? "rotate(90deg)" : "none", transition: "transform 0.2s" }} />
+          {atribuicaoLoading && <Loader2 size={11} style={{ animation: "spin 1s linear infinite" }} />}
+        </button>
+
+        {atribuicaoOpen && (
+          <div style={{ marginTop: 10, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(79,140,255,0.1)", borderRadius: 14, overflow: "hidden" }}>
+            {atribuicao.length === 0 ? (
+              <p style={{ padding: "16px 20px", fontSize: 12, color: "#4a617f" }}>
+                Nenhum lead com origem em posts do Instagram. Ative "Gerar lead no pipeline" numa automação.
+              </p>
+            ) : (
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                    {["Post (ID)", "Leads", "Fechados", "Taxa"].map(h => (
+                      <th key={h} style={{ padding: "10px 16px", textAlign: "left", fontSize: 10, fontWeight: 700, color: "#4a617f", letterSpacing: "0.04em", textTransform: "uppercase" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {atribuicao.map((item, i) => {
+                    const taxa = item.total > 0 ? Math.round((item.fechados / item.total) * 100) : 0;
+                    return (
+                      <tr
+                        key={item.postOrigemId}
+                        style={{ borderBottom: i < atribuicao.length - 1 ? "1px solid rgba(255,255,255,0.03)" : "none" }}
+                      >
+                        <td style={{ padding: "10px 16px", fontSize: 11, color: "#6b82a8", fontFamily: "monospace" }}>
+                          {item.postOrigemId.slice(0, 20)}…
+                        </td>
+                        <td style={{ padding: "10px 16px", fontSize: 12, fontWeight: 600, color: "#4F8CFF" }}>{item.total}</td>
+                        <td style={{ padding: "10px 16px", fontSize: 12, fontWeight: 600, color: "#22C55E" }}>{item.fechados}</td>
+                        <td style={{ padding: "10px 16px", fontSize: 12, color: taxa > 20 ? "#22C55E" : "#6b82a8" }}>
+                          {taxa}%
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── Kanban ── */}

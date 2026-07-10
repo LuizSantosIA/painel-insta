@@ -15,6 +15,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       ...(body.dmText !== undefined && { dmText: body.dmText }),
       ...(body.mediaId !== undefined && { mediaId: body.mediaId?.trim() || null }),
       ...(body.isActive !== undefined && { isActive: body.isActive }),
+      ...(body.createLead !== undefined && { createLead: Boolean(body.createLead) }),
+      ...(body.leadLinha !== undefined && { leadLinha: body.leadLinha || null }),
     },
   });
   return NextResponse.json(rule);

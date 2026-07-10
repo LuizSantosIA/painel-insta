@@ -17,6 +17,8 @@ interface Rule {
   mediaId: string | null;
   isActive: boolean;
   triggerCount: number;
+  createLead: boolean;
+  leadLinha: string | null;
 }
 
 interface Post {
@@ -47,7 +49,13 @@ interface ApplyResult {
   preview: PreviewItem[];
 }
 
-const EMPTY_FORM = { name: "", keywords: "", replyText: "", sendDm: false, dmText: "", mediaId: "" };
+const LINHAS_RECEITA = [
+  { key: "INNOBI",   label: "Innobi" },
+  { key: "MENTORIA", label: "Mentoria" },
+  { key: "SERVICOS", label: "Serviços" },
+];
+
+const EMPTY_FORM = { name: "", keywords: "", replyText: "", sendDm: false, dmText: "", mediaId: "", createLead: false, leadLinha: "SERVICOS" };
 
 export function AutoManager({ posts }: { posts: Post[] }) {
   const [rules, setRules] = useState<Rule[]>([]);
@@ -90,6 +98,8 @@ export function AutoManager({ posts }: { posts: Post[] }) {
       sendDm: rule.sendDm,
       dmText: rule.dmText,
       mediaId: rule.mediaId ?? "",
+      createLead: rule.createLead,
+      leadLinha: rule.leadLinha ?? "SERVICOS",
     });
     setFormError(null);
     setDrawerOpen(true);
@@ -106,6 +116,7 @@ export function AutoManager({ posts }: { posts: Post[] }) {
     if (!form.keywords.trim()) { setFormError("Preencha ao menos uma palavra-chave."); return; }
     if (!form.replyText.trim() && !form.dmText.trim()) { setFormError("Preencha a resposta no comentário ou o texto do direct."); return; }
     if (form.dmText.length > 1000) { setFormError("O texto do direct ultrapassa 1000 caracteres."); return; }
+    if (form.createLead && !form.leadLinha) { setFormError("Escolha a linha de receita para gerar leads."); return; }
     setSaving(true);
     setFormError(null);
     try {
@@ -113,7 +124,7 @@ export function AutoManager({ posts }: { posts: Post[] }) {
         const res = await fetch(`/api/automacoes/rules/${editingId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...form, sendDm: form.sendDm }),
+          body: JSON.stringify({ ...form, sendDm: form.sendDm, createLead: form.createLead }),
         });
         const updated: Rule = await res.json();
         setRules((prev) => prev.map((r) => (r.id === editingId ? updated : r)));
@@ -275,6 +286,11 @@ export function AutoManager({ posts }: { posts: Post[] }) {
                       <span className="inline-flex items-center gap-1 text-xs font-medium text-brand">
                         <Send className="h-3 w-3" /> DM:
                       </span>{" "}{rule.dmText}
+                    </p>
+                  )}
+                  {rule.createLead && rule.leadLinha && (
+                    <p className="text-xs font-medium" style={{ color: "#22C55E" }}>
+                      🎯 Gera lead · {LINHAS_RECEITA.find(l => l.key === rule.leadLinha)?.label ?? rule.leadLinha}
                     </p>
                   )}
                 </div>
@@ -519,6 +535,44 @@ export function AutoManager({ posts }: { posts: Post[] }) {
                   </p>
                 </div>
               )}
+
+              {/* Pipeline toggle */}
+              <div className="rounded-xl border border-border bg-surface-2/30 p-4 space-y-3">
+                <button
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, createLead: !f.createLead }))}
+                  className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2.5 text-sm transition-colors ${
+                    form.createLead
+                      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+                      : "border-border bg-surface-2 text-muted hover:text-foreground"
+                  }`}
+                >
+                  <span className="text-base">🎯</span>
+                  {form.createLead ? "Gerar lead no pipeline ativado" : "Gerar lead no pipeline?"}
+                  {form.createLead
+                    ? <ToggleRight className="ml-auto h-5 w-5 text-emerald-400" />
+                    : <ToggleLeft className="ml-auto h-5 w-5" />}
+                </button>
+
+                {form.createLead && (
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted">Linha de receita do lead</label>
+                    <div className="relative">
+                      <select
+                        value={form.leadLinha}
+                        onChange={(e) => setForm((f) => ({ ...f, leadLinha: e.target.value }))}
+                        className="w-full appearance-none rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-3 py-2.5 pr-8 text-sm outline-none focus:border-emerald-400"
+                      >
+                        {LINHAS_RECEITA.map((l) => (
+                          <option key={l.key} value={l.key}>{l.label}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+                    </div>
+                    <p className="text-xs text-muted">O lead é criado no pipeline com próxima ação automática. Deduplicado por usuário + post.</p>
+                  </div>
+                )}
+              </div>
 
               {formError && (
                 <p className="flex items-center gap-1.5 text-xs text-rose-400">
