@@ -228,3 +228,20 @@ model Config {
   saldoCaixa   Int      @default(0) // centavos — informado manualmente
   atualizadoEm DateTime @updatedAt
 }
+
+// ─── Auto Posts ──────────────────────────────────────────────────────────────
+
+// status: RASCUNHO | APROVADO | REJEITADO | PUBLICADO
+// slides: JSON serializado — [{titulo: string, corpo: string}]
+model PostRascunho {
+  id           String   @id @default(cuid())
+  topico       String
+  slides       String
+  legenda      String
+  status       String   @default("RASCUNHO")
+  igMediaId    String?
+  geradoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  @@index([status, geradoEm])
+}
