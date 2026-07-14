@@ -2,11 +2,10 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Loader2, AlertTriangle, CheckCircle, Flag, TrendingUp, Users, Clock, DollarSign, ChevronRight } from "lucide-react";
+import { Loader2, CheckCircle, Flag, TrendingUp, Clock, DollarSign, ChevronRight, Circle, CheckCircle2 } from "lucide-react";
 import { fmtBRL } from "@/lib/financeiro";
-import { diasParaVencer, isVencido } from "@/lib/compromisso";
-import { isAtrasado, ESTAGIOS_ATIVOS } from "@/lib/pipeline";
-import { corSaude, labelSaude } from "@/lib/saude";
+import { diasParaVencer } from "@/lib/compromisso";
+import { ESTAGIOS_ATIVOS } from "@/lib/pipeline";
 import type { ClienteSaudeItem } from "@/app/api/clientes/saude/route";
 
 interface Compromisso {
@@ -21,9 +20,14 @@ interface Lead {
 interface Resumo {
   mrrAtual: number; mrrVariacao: number | null; runway: number | null; saldoCaixa: number;
 }
+interface Task {
+  id: string; title: string; description: string | null;
+  dueDate: string | null; done: boolean; priority: string;
+  client: { id: string; name: string } | null;
+}
 
 type ItemUrgente = {
-  tipo: "compromisso" | "lead";
+  tipo: "compromisso" | "lead" | "tarefa";
   id: string;
   titulo: string;
   sub: string;
@@ -34,10 +38,6 @@ type ItemUrgente = {
 const ESTAGIO_LABEL: Record<string, string> = {
   LEAD: "Lead", QUALIFICADO: "Qualificado", PROPOSTA_ENVIADA: "Proposta",
   NEGOCIACAO: "Negociação", FECHADO: "Fechado", PERDIDO: "Perdido",
-};
-
-const LINHA_COR: Record<string, string> = {
-  INNOBI: "#4F8CFF", MENTORIA: "#7C5CFF", SERVICOS: "#00D4FF",
 };
 
 function saudacao(): string {
@@ -58,7 +58,9 @@ export default function HojePage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [saude, setSaude] = useState<ClienteSaudeItem[]>([]);
   const [resumo, setResumo] = useState<Resumo | null>(null);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  const [togglingTask, setTogglingTask] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -66,14 +68,33 @@ export default function HojePage() {
       fetch("/api/leads").then(r => r.ok ? r.json() : []),
       fetch("/api/clientes/saude").then(r => r.ok ? r.json() : []),
       fetch("/api/financeiro/resumo").then(r => r.ok ? r.json() : null),
-    ]).then(([c, l, s, r]) => {
+      fetch("/api/tasks").then(r => r.ok ? r.json() : []),
+    ]).then(([c, l, s, r, t]) => {
       setCompromissos(c);
       setLeads(l);
       setSaude(s);
       setResumo(r);
+      setTasks(t);
       setLoading(false);
     });
   }, []);
+
+  async function toggleTask(task: Task) {
+    setTogglingTask(task.id);
+    try {
+      const res = await fetch(`/api/tasks/${task.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ done: !task.done }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setTasks(prev => prev.map(t => t.id === task.id ? updated : t));
+      }
+    } finally {
+      setTogglingTask(null);
+    }
+  }
 
   // ── Urgências ───────────────────────────────────────────────────────────
   const urgentes: ItemUrgente[] = [];
@@ -102,8 +123,34 @@ export default function HojePage() {
     else if (dias === 0) paraHoje.push(item);
   }
 
+  for (const t of tasks) {
+    if (t.done || !t.dueDate) continue;
+    const dias = diasParaVencer(t.dueDate);
+    const item: ItemUrgente = {
+      tipo: "tarefa", id: t.id,
+      titulo: t.title,
+      sub: t.client ? `Cliente: ${t.client.name}` : "Tarefa pessoal",
+      dias, href: "/negocio/tarefas",
+    };
+    if (dias < 0) urgentes.push(item);
+    else if (dias === 0) paraHoje.push(item);
+  }
+
   urgentes.sort((a, b) => a.dias - b.dias);
   paraHoje.sort((a, b) => a.tipo.localeCompare(b.tipo));
+
+  // ── Tarefas para a seção dedicada ────────────────────────────────────────
+  const tarefasPendentes = tasks.filter(t => !t.done);
+  const tarefasHoje = tarefasPendentes.filter(t => t.dueDate && diasParaVencer(t.dueDate) === 0);
+  const tarefasAtrasadas = tarefasPendentes.filter(t => t.dueDate && diasParaVencer(t.dueDate) < 0);
+  const tarefasSemData = tarefasPendentes.filter(t => !t.dueDate);
+  const tarefasOrdenadas = [
+    ...tarefasAtrasadas,
+    ...tarefasHoje,
+    ...tarefasSemData.filter(t => t.priority === "high"),
+    ...tarefasSemData.filter(t => t.priority === "medium"),
+    ...tarefasSemData.filter(t => t.priority === "low"),
+  ].slice(0, 8);
 
   // ── Pipeline ─────────────────────────────────────────────────────────────
   const leadsAtivos = leads.filter(l => ESTAGIOS_ATIVOS.includes(l.estagio));
@@ -114,7 +161,7 @@ export default function HojePage() {
   const vermelhos = saude.filter(c => c.saude === "VERMELHO");
   const amarelos = saude.filter(c => c.saude === "AMARELO");
 
-  const tudoOk = urgentes.length === 0 && paraHoje.length === 0 && vermelhos.length === 0;
+  const tudoOk = urgentes.length === 0 && paraHoje.length === 0 && vermelhos.length === 0 && tarefasPendentes.length === 0;
 
   if (loading) {
     return (
@@ -286,6 +333,23 @@ export default function HojePage() {
         </Section>
       )}
 
+      {/* ── Tarefas ── */}
+      {tarefasOrdenadas.length > 0 && (
+        <Section title="✅ Tarefas" href="/negocio/tarefas"
+          subtitle={`${tarefasPendentes.length} pendente${tarefasPendentes.length !== 1 ? "s" : ""}${tarefasAtrasadas.length > 0 ? ` · ${tarefasAtrasadas.length} atrasada${tarefasAtrasadas.length !== 1 ? "s" : ""}` : ""}`}
+          borderColor={tarefasAtrasadas.length > 0 ? "#EF4444" : tarefasHoje.length > 0 ? "#F59E0B" : undefined}
+        >
+          {tarefasOrdenadas.map(task => (
+            <TarefaRow key={task.id} task={task} toggling={togglingTask === task.id} onToggle={() => toggleTask(task)} />
+          ))}
+          {tarefasPendentes.length > 8 && (
+            <Link href="/negocio/tarefas" style={{ fontSize: 12, color: "#4F8CFF", textDecoration: "none", paddingTop: 4, display: "block" }}>
+              + {tarefasPendentes.length - 8} tarefa{tarefasPendentes.length - 8 !== 1 ? "s" : ""} a mais →
+            </Link>
+          )}
+        </Section>
+      )}
+
       {/* ── Tudo ok ── */}
       {tudoOk && urgentes.length === 0 && vermelhos.length === 0 && (
         <div className="card" style={{ padding: "28px 24px", textAlign: "center", border: "1px solid rgba(34,197,94,0.2)", background: "rgba(34,197,94,0.04)" }}>
@@ -358,10 +422,50 @@ function Section({ title, subtitle, borderColor, href, children }: {
   );
 }
 
+const PRIORITY_COR: Record<string, string> = { high: "#f87171", medium: "#fbbf24", low: "#6b82a8" };
+const PRIORITY_LABEL: Record<string, string> = { high: "Alta", medium: "Média", low: "Baixa" };
+
+function TarefaRow({ task, toggling, onToggle }: { task: Task; toggling: boolean; onToggle: () => void }) {
+  const atrasada = task.dueDate ? diasParaVencer(task.dueDate) < 0 : false;
+  const hoje = task.dueDate ? diasParaVencer(task.dueDate) === 0 : false;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 4px", borderRadius: 8 }}>
+      <button
+        onClick={onToggle}
+        disabled={toggling}
+        style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "#3d5275", flexShrink: 0 }}
+      >
+        {toggling
+          ? <Loader2 size={18} style={{ color: "#4F8CFF", animation: "spin 1s linear infinite" }} />
+          : task.done
+            ? <CheckCircle2 size={18} style={{ color: "#22C55E" }} />
+            : <Circle size={18} />
+        }
+      </button>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontSize: 13, fontWeight: 600, color: task.done ? "#4a617f" : "#e8f0ff", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: task.done ? "line-through" : "none" }}>
+          {task.title}
+        </p>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: PRIORITY_COR[task.priority] ?? "#4a617f" }}>
+            {PRIORITY_LABEL[task.priority] ?? task.priority}
+          </span>
+          {task.client && <span style={{ fontSize: 10, color: "#4a617f" }}>· {task.client.name}</span>}
+          {task.dueDate && (
+            <span style={{ fontSize: 10, color: atrasada ? "#f87171" : hoje ? "#fbbf24" : "#4a617f", fontWeight: atrasada || hoje ? 700 : 400 }}>
+              · {atrasada ? "atrasada" : hoje ? "hoje" : new Date(task.dueDate + "T12:00:00").toLocaleDateString("pt-BR", { day: "numeric", month: "short" })}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ItemCard({ item }: { item: ItemUrgente }) {
   const vencido = item.dias < 0;
   const hoje = item.dias === 0;
-  const corItem = item.tipo === "compromisso" ? "#00D4FF" : "#7C5CFF";
+  const corItem = item.tipo === "compromisso" ? "#00D4FF" : item.tipo === "tarefa" ? "#F59E0B" : "#7C5CFF";
 
   return (
     <Link href={item.href} style={{ textDecoration: "none" }}>
