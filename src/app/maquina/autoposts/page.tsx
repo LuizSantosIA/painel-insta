@@ -65,87 +65,72 @@ function SlideCard({
 }: {
   slide: Slide; index: number; total: number; compact?: boolean;
 }) {
-  const isFirst = index === 0;
+  const isCover = index === 0;
+  const pad = compact ? 13 : 22;
+  const footerPad = compact ? 9 : 15;
 
   return (
     <div style={{
       width: "100%", aspectRatio: "1 / 1",
-      background: "#060e1f",
-      borderRadius: compact ? 12 : 16,
+      background: "#000000",
+      borderRadius: compact ? 10 : 14,
       overflow: "hidden", position: "relative",
       display: "flex", flexDirection: "column",
-      border: "1px solid rgba(79,140,255,0.18)",
+      border: "1px solid rgba(255,255,255,0.07)",
       userSelect: "none",
     }}>
-      {/* Gradiente ambiente */}
+      {/* Linha de acento no topo */}
       <div style={{
-        position: "absolute", inset: 0, pointerEvents: "none",
-        background: "radial-gradient(ellipse at 15% 15%, rgba(79,140,255,0.14) 0%, transparent 55%), radial-gradient(ellipse at 85% 85%, rgba(124,92,255,0.09) 0%, transparent 55%)",
-      }} />
-      {/* Linha do topo */}
-      <div style={{
-        position: "absolute", top: 0, left: 0, right: 0, height: 3,
-        background: "linear-gradient(90deg, #4F8CFF, #7C5CFF)",
+        height: compact ? 2 : 3, flexShrink: 0,
+        background: "linear-gradient(90deg, #4F8CFF 0%, #a855f7 60%, #4F8CFF 100%)",
       }} />
 
-      {/* Cabeçalho */}
+      {/* Número do slide — canto superior direito */}
       <div style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: compact ? "16px 16px 0" : "22px 22px 0",
-        position: "relative", zIndex: 1, flexShrink: 0,
+        position: "absolute", top: compact ? 10 : 14, right: compact ? 10 : 16,
+        fontSize: compact ? 8 : 10, fontWeight: 700,
+        color: "rgba(255,255,255,0.22)", letterSpacing: "0.06em",
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: compact ? 8 : 12 }}>
-          <ProfileAvatar size={compact ? 32 : 40} />
-          <div>
-            <div style={{ fontSize: compact ? 10 : 13, fontWeight: 700, color: "#f1f5ff", lineHeight: 1.2 }}>
-              Luiz Santos
-            </div>
-            <div style={{ fontSize: compact ? 9 : 11, color: "#4F8CFF", fontWeight: 500 }}>
-              @luizsantos.ia
-            </div>
-          </div>
-        </div>
-        <div style={{
-          background: "rgba(79,140,255,0.12)", border: "1px solid rgba(79,140,255,0.28)",
-          borderRadius: 20, padding: compact ? "3px 9px" : "4px 12px",
-          fontSize: compact ? 9 : 11, fontWeight: 700, color: "#4F8CFF",
-        }}>
-          {index + 1} / {total}
-        </div>
+        {index + 1}/{total}
       </div>
 
-      {/* Divisória */}
-      <div style={{
-        margin: compact ? "10px 16px 0" : "14px 22px 0",
-        height: 1, background: "rgba(79,140,255,0.15)", flexShrink: 0,
-      }} />
-
-      {/* Conteúdo */}
+      {/* Conteúdo central */}
       <div style={{
         flex: 1, display: "flex", flexDirection: "column",
         justifyContent: "center", overflow: "hidden",
-        padding: compact ? "0 16px" : "0 22px",
-        gap: compact ? 8 : 14,
-        position: "relative", zIndex: 1,
+        padding: `${compact ? 10 : 16}px ${pad}px`,
+        gap: compact ? 7 : 12,
       }}>
+        {/* Tag de número (slides de conteúdo, não cover) */}
+        {!isCover && !compact && (
+          <div style={{
+            fontSize: 9, fontWeight: 800, color: "#4F8CFF",
+            letterSpacing: "0.12em", textTransform: "uppercase",
+          }}>
+            {index === total - 1 ? "CONCLUSÃO" : `PONTO ${index}`}
+          </div>
+        )}
+
+        {/* Título */}
         <div style={{
-          fontSize: isFirst
-            ? (compact ? 15 : 22)
-            : (compact ? 13 : 18),
+          fontSize: isCover ? (compact ? 13 : 20) : (compact ? 11 : 16),
           fontWeight: 800, color: "#ffffff",
-          lineHeight: 1.25, letterSpacing: "-0.3px",
+          lineHeight: 1.2, letterSpacing: isCover ? "-0.5px" : "-0.2px",
           display: "-webkit-box",
-          WebkitLineClamp: 3,
+          WebkitLineClamp: isCover ? 4 : 3,
           WebkitBoxOrient: "vertical",
           overflow: "hidden",
         }}>
           {slide.titulo}
         </div>
+
+        {/* Corpo */}
         <div style={{
-          fontSize: compact ? 10 : 13,
-          color: "#8aa4bf", lineHeight: 1.65,
+          fontSize: compact ? 9 : 12,
+          color: "rgba(255,255,255,0.5)",
+          lineHeight: 1.65,
           display: "-webkit-box",
-          WebkitLineClamp: compact ? 4 : 5,
+          WebkitLineClamp: compact ? 3 : 5,
           WebkitBoxOrient: "vertical",
           overflow: "hidden",
         }}>
@@ -153,25 +138,20 @@ function SlideCard({
         </div>
       </div>
 
-      {/* Rodapé com dots */}
-      <div style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: compact ? "0 16px 14px" : "0 22px 18px",
-        flexShrink: 0, position: "relative", zIndex: 1,
-      }}>
-        <div style={{ display: "flex", gap: compact ? 4 : 5 }}>
-          {Array.from({ length: total }).map((_, i) => (
-            <div key={i} style={{
-              width: i === index ? (compact ? 12 : 16) : (compact ? 5 : 6),
-              height: compact ? 5 : 6, borderRadius: 3,
-              background: i === index ? "#4F8CFF" : "rgba(79,140,255,0.22)",
-              transition: "all 0.2s",
-            }} />
-          ))}
+      {/* Rodapé: foto + handle */}
+      <div style={{ padding: `0 ${pad}px ${footerPad}px`, flexShrink: 0 }}>
+        <div style={{
+          height: 1, background: "rgba(255,255,255,0.07)", marginBottom: footerPad,
+        }} />
+        <div style={{ display: "flex", alignItems: "center", gap: compact ? 6 : 9 }}>
+          <ProfileAvatar size={compact ? 20 : 28} />
+          <span style={{
+            fontSize: compact ? 8 : 11, fontWeight: 600,
+            color: "rgba(255,255,255,0.45)", letterSpacing: "0.01em",
+          }}>
+            @luizsantos.ia
+          </span>
         </div>
-        <span style={{ fontSize: compact ? 8 : 10, color: "rgba(79,140,255,0.45)", fontWeight: 600 }}>
-          @luizsantos.ia
-        </span>
       </div>
     </div>
   );

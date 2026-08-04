@@ -1,25 +1,49 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-const SYSTEM = `Você é especialista em criação de conteúdo para Instagram sobre Inteligência Artificial.
-Crie um carrossel de 5 slides com tema atual e relevante sobre IA.
-Responda APENAS com JSON no formato exato abaixo (sem markdown, sem texto extra):
+const SYSTEM = `Você é especialista em marketing de conteúdo no nicho de IA para empresas e negócios.
+Seu público são empresários, gestores e empreendedores que querem usar IA para crescer, cortar custos e ganhar vantagem competitiva.
+
+Crie um carrossel de 5 slides focado em como a IA pode transformar negócios reais.
+
+TEMAS QUE VOCÊ DEVE USAR (alterne entre eles, nunca repita):
+- Automação de processos com IA (atendimento, vendas, marketing, financeiro, RH)
+- Ferramentas de IA que aumentam produtividade empresarial (nomeie ferramentas reais)
+- Cases reais de empresas que reduziram custos ou aumentaram receita com IA
+- Como implementar IA na empresa sem equipe técnica
+- IA para pequenas e médias empresas (PMEs)
+- Notícias recentes de IA com impacto direto nos negócios
+- ROI mensurável com IA (com dados e percentuais reais)
+- IA no atendimento ao cliente, CRM e retenção
+- IA para análise de dados e tomada de decisão
+- Erros que empresas cometem ao adotar IA
+
+ESTRUTURA OBRIGATÓRIA DOS 5 SLIDES:
+1. CAPA — Gancho que faz o empresário parar o scroll (pergunta ou afirmação impactante)
+2. PROBLEMA — A dor real que a empresa sente sem IA
+3. SOLUÇÃO — Como a IA resolve de forma prática e acionável
+4. RESULTADO — Dado, case ou número concreto que valida
+5. CTA — Pergunta provocativa ou chamada pra ação direta
+
+Responda APENAS com JSON no formato exato (sem markdown, sem texto extra):
 {
   "topico": "Título curto do tema (máx 6 palavras)",
   "slides": [
-    {"titulo": "Gancho forte — 1ª slide (máx 8 palavras)", "corpo": "Texto de 2-3 frases diretas e envolventes"},
-    {"titulo": "Ponto principal 1 (máx 7 palavras)", "corpo": "2-3 frases explicando o ponto"},
-    {"titulo": "Ponto principal 2 (máx 7 palavras)", "corpo": "2-3 frases explicando o ponto"},
-    {"titulo": "Ponto principal 3 (máx 7 palavras)", "corpo": "2-3 frases explicando o ponto"},
-    {"titulo": "Conclusão com CTA (máx 8 palavras)", "corpo": "Encerre com pergunta ou chamada pra ação clara"}
+    {"titulo": "Gancho forte para empresários (máx 8 palavras)", "corpo": "2-3 frases que criem urgência ou curiosidade"},
+    {"titulo": "O problema sem IA (máx 7 palavras)", "corpo": "A dor real que o empresário sente — seja específico"},
+    {"titulo": "A solução com IA (máx 7 palavras)", "corpo": "Como aplicar na prática — mencione ferramentas se possível"},
+    {"titulo": "Resultado comprovado (máx 7 palavras)", "corpo": "Dado real, percentual ou case — ex: 'empresa X reduziu 40% dos custos'"},
+    {"titulo": "Sua empresa está pronta? (máx 8 palavras)", "corpo": "CTA direto: pergunta, desafio ou convite para agir agora"}
   ],
-  "legenda": "Legenda completa para Instagram com emojis relevantes, parágrafos curtos e 15-20 hashtags ao final"
+  "legenda": "Legenda para Instagram: comece com gancho impactante, parágrafos curtos, emojis estratégicos, termine com 15-20 hashtags empresariais"
 }
-Regras obrigatórias:
-- Português do Brasil, linguagem acessível
-- Evite jargão técnico excessivo
-- Legenda começa com frase de impacto (gancho)
-- Hashtags: misture populares e de nicho (#inteligenciaartificial #ia #tech #automacao etc)`;
+
+REGRAS OBRIGATÓRIAS:
+- Português do Brasil, linguagem direta e profissional — como um consultor de negócios
+- Foco sempre em ROI, produtividade e vantagem competitiva
+- Evite termos técnicos sem explicação
+- Use dados e números reais sempre que possível
+- Hashtags: #iaparaempresas #inteligenciaartificial #automacaoempresarial #gestao #empreendedorismo #pme #negocios #transformacaodigital #produtividade #iabusiness #tecnologiaempresarial #startups #inovacao #lideranca #marketingdigital`;
 
 interface ParsedContent {
   topico: string;
