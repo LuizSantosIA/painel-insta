@@ -68,19 +68,47 @@ function SlideCard({
   slide: Slide; index: number; total: number; compact?: boolean;
 }) {
   const isCover = index === 0;
-  const pad = compact ? 11 : 18;
-
   const TAGS = ["CAPA", "CONTEXTO", "IMPACTO", "AÇÃO", "CTA"];
   const tag = TAGS[index] ?? `${index + 1}`;
 
-  const hasImage = Boolean(slide.imageUrl);
+  // Imagem somente no primeiro slide (CAPA)
+  const showImage = isCover && Boolean(slide.imageUrl);
+
+  const footerPad = compact ? "0 10px 8px" : "0 16px 14px";
+  const dotW = (i: number) => i === index ? (compact ? 10 : 14) : (compact ? 4 : 5);
+  const dotH = compact ? 4 : 5;
+
+  function Footer() {
+    return (
+      <div style={{ padding: footerPad, flexShrink: 0 }}>
+        <div style={{ height: 1, background: "rgba(255,255,255,0.07)", marginBottom: compact ? 6 : 9 }} />
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: compact ? 5 : 7 }}>
+            <ProfileAvatar size={compact ? 18 : 26} />
+            <span style={{ fontSize: compact ? 7 : 10, fontWeight: 600, color: "rgba(255,255,255,0.4)" }}>
+              @luizsantos.ia
+            </span>
+          </div>
+          <div style={{ display: "flex", gap: compact ? 3 : 4 }}>
+            {Array.from({ length: total }).map((_, i) => (
+              <div key={i} style={{
+                width: dotW(i), height: dotH, borderRadius: 3,
+                background: i === index ? "#4F8CFF" : "rgba(255,255,255,0.15)",
+                transition: "all 0.2s",
+              }} />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{
       width: "100%", aspectRatio: "1 / 1",
       background: "#000",
       borderRadius: compact ? 10 : 14,
-      overflow: "hidden", position: "relative",
+      overflow: "hidden",
       display: "flex", flexDirection: "column",
       border: "1px solid rgba(255,255,255,0.08)",
       userSelect: "none",
@@ -91,166 +119,125 @@ function SlideCard({
         background: "linear-gradient(90deg, #4F8CFF 0%, #a855f7 55%, #4F8CFF 100%)",
       }} />
 
-      {hasImage ? (
-        /* ── Layout COM imagem ── */
+      {showImage ? (
+        /* ── CAPA com imagem ── */
         <>
-          {/* Imagem ocupa a metade superior */}
+          {/* Imagem com overlay + tag/número sobrepostos */}
           <div style={{
-            flex: "0 0 50%", overflow: "hidden", position: "relative",
-            margin: compact ? "8px 10px 0" : "12px 14px 0",
-            borderRadius: compact ? 6 : 10,
+            flex: "0 0 48%", position: "relative", overflow: "hidden",
+            margin: compact ? "7px 8px 0" : "10px 12px 0",
+            borderRadius: compact ? 6 : 9,
           }}>
             <img
               src={slide.imageUrl!}
-              alt={slide.imageQuery ?? slide.titulo}
+              alt={slide.titulo}
               style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
             />
-            {/* Tag de seção sobre a imagem */}
+            {/* Gradiente inferior para legibilidade */}
             <div style={{
-              position: "absolute", top: compact ? 5 : 8, left: compact ? 6 : 10,
-              fontSize: compact ? 7 : 9, fontWeight: 800, letterSpacing: "0.1em",
-              color: "#fff", background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)",
+              position: "absolute", inset: 0,
+              background: "linear-gradient(to bottom, transparent 50%, rgba(0,0,0,0.45) 100%)",
+            }} />
+            <div style={{
+              position: "absolute", top: compact ? 5 : 7, left: compact ? 6 : 9,
+              fontSize: compact ? 7 : 9, fontWeight: 800, letterSpacing: "0.09em",
+              color: "#fff", background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)",
               borderRadius: 4, padding: compact ? "2px 5px" : "3px 7px",
             }}>
               {tag}
             </div>
-            {/* Número do slide */}
             <div style={{
-              position: "absolute", top: compact ? 5 : 8, right: compact ? 6 : 10,
+              position: "absolute", top: compact ? 5 : 7, right: compact ? 6 : 9,
               fontSize: compact ? 7 : 9, fontWeight: 700,
-              color: "rgba(255,255,255,0.7)", background: "rgba(0,0,0,0.5)",
+              color: "rgba(255,255,255,0.75)", background: "rgba(0,0,0,0.5)",
               borderRadius: 4, padding: compact ? "2px 5px" : "3px 7px",
             }}>
               {index + 1}/{total}
             </div>
           </div>
 
-          {/* Texto abaixo da imagem */}
+          {/* Texto */}
           <div style={{
-            flex: 1, display: "flex", flexDirection: "column",
-            justifyContent: "flex-start", overflow: "hidden",
-            padding: compact ? "6px 10px 0" : "10px 14px 0",
-            gap: compact ? 3 : 6,
+            flex: 1, display: "flex", flexDirection: "column", justifyContent: "center",
+            padding: compact ? "7px 10px 0" : "10px 14px 0",
+            gap: compact ? 3 : 5, overflow: "hidden",
           }}>
             <div style={{
-              fontSize: isCover ? (compact ? 12 : 16) : (compact ? 10 : 13),
-              fontWeight: 800, color: "#fff",
-              lineHeight: 1.25, letterSpacing: "-0.2px",
-              display: "-webkit-box",
-              WebkitLineClamp: compact ? 2 : 3,
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden",
+              fontSize: compact ? 12 : 17, fontWeight: 800, color: "#fff",
+              lineHeight: 1.2, letterSpacing: "-0.3px",
+              display: "-webkit-box", WebkitLineClamp: compact ? 2 : 3,
+              WebkitBoxOrient: "vertical", overflow: "hidden",
             }}>
               {slide.titulo}
             </div>
             {!compact && (
               <div style={{
-                fontSize: 10.5, color: "rgba(255,255,255,0.5)",
-                lineHeight: 1.6,
-                display: "-webkit-box",
-                WebkitLineClamp: 4,
-                WebkitBoxOrient: "vertical",
-                overflow: "hidden",
-                whiteSpace: "pre-line",
+                fontSize: 11, color: "rgba(255,255,255,0.5)", lineHeight: 1.55,
+                display: "-webkit-box", WebkitLineClamp: 3,
+                WebkitBoxOrient: "vertical", overflow: "hidden",
               }}>
                 {slide.corpo}
               </div>
             )}
           </div>
 
-          {/* Rodapé */}
-          <div style={{ padding: `0 ${pad}px ${compact ? 8 : 12}px`, flexShrink: 0 }}>
-            <div style={{ height: 1, background: "rgba(255,255,255,0.07)", marginBottom: compact ? 6 : 9 }} />
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: compact ? 5 : 8 }}>
-                <ProfileAvatar size={compact ? 18 : 26} />
-                <span style={{ fontSize: compact ? 7 : 10, fontWeight: 600, color: "rgba(255,255,255,0.4)" }}>
-                  @luizsantos.ia
-                </span>
-              </div>
-              <div style={{ display: "flex", gap: compact ? 3 : 4 }}>
-                {Array.from({ length: total }).map((_, i) => (
-                  <div key={i} style={{
-                    width: i === index ? (compact ? 10 : 14) : (compact ? 4 : 5),
-                    height: compact ? 4 : 5, borderRadius: 3,
-                    background: i === index ? "#4F8CFF" : "rgba(255,255,255,0.15)",
-                    transition: "all 0.2s",
-                  }} />
-                ))}
-              </div>
-            </div>
-          </div>
+          <Footer />
         </>
       ) : (
-        /* ── Layout SEM imagem (fallback texto) ── */
+        /* ── Slides 2-5: apenas texto, layout limpo ── */
         <>
-          {/* Tag + número */}
+          {/* Tag + número — linha fixa no topo */}
           <div style={{
             display: "flex", justifyContent: "space-between", alignItems: "center",
-            padding: compact ? "8px 11px 0" : "14px 18px 0", flexShrink: 0,
+            padding: compact ? "8px 10px 0" : "14px 16px 0",
+            flexShrink: 0,
           }}>
             <span style={{
-              fontSize: compact ? 7 : 9, fontWeight: 800, color: "#4F8CFF",
-              letterSpacing: "0.1em", textTransform: "uppercase",
-            }}>{tag}</span>
-            <span style={{ fontSize: compact ? 7 : 9, fontWeight: 700, color: "rgba(255,255,255,0.2)" }}>
+              fontSize: compact ? 7 : 9, fontWeight: 800,
+              color: "#4F8CFF", letterSpacing: "0.1em",
+            }}>
+              {tag}
+            </span>
+            <span style={{ fontSize: compact ? 7 : 9, fontWeight: 600, color: "rgba(255,255,255,0.2)" }}>
               {index + 1}/{total}
             </span>
           </div>
 
-          {/* Conteúdo central */}
+          {/* Divisor fino */}
           <div style={{
-            flex: 1, display: "flex", flexDirection: "column",
-            justifyContent: "center", overflow: "hidden",
-            padding: compact ? "8px 11px" : "12px 18px",
-            gap: compact ? 7 : 12,
+            height: 1, margin: compact ? "6px 10px" : "10px 16px",
+            background: "rgba(79,140,255,0.15)", flexShrink: 0,
+          }} />
+
+          {/* Título + corpo — bloco central com scroll contido */}
+          <div style={{
+            flex: 1, overflow: "hidden",
+            padding: compact ? "0 10px" : "0 16px",
+            display: "flex", flexDirection: "column", gap: compact ? 5 : 10,
           }}>
             <div style={{
-              fontSize: isCover ? (compact ? 13 : 20) : (compact ? 11 : 17),
+              fontSize: isCover ? (compact ? 13 : 20) : (compact ? 11 : 16),
               fontWeight: 800, color: "#fff",
-              lineHeight: 1.2, letterSpacing: "-0.3px",
+              lineHeight: 1.22, letterSpacing: "-0.25px",
               display: "-webkit-box",
-              WebkitLineClamp: isCover ? 4 : 3,
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden",
+              WebkitLineClamp: compact ? 2 : 3,
+              WebkitBoxOrient: "vertical", overflow: "hidden",
             }}>
               {slide.titulo}
             </div>
             <div style={{
-              fontSize: compact ? 9 : 12, color: "rgba(255,255,255,0.5)",
+              fontSize: compact ? 8.5 : 11.5, color: "rgba(255,255,255,0.5)",
               lineHeight: 1.65,
               display: "-webkit-box",
-              WebkitLineClamp: compact ? 4 : 8,
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden",
+              WebkitLineClamp: compact ? 5 : 9,
+              WebkitBoxOrient: "vertical", overflow: "hidden",
               whiteSpace: "pre-line",
             }}>
               {slide.corpo}
             </div>
           </div>
 
-          {/* Rodapé */}
-          <div style={{ padding: `0 ${pad}px ${compact ? 9 : 14}px`, flexShrink: 0 }}>
-            <div style={{ height: 1, background: "rgba(255,255,255,0.07)", marginBottom: compact ? 7 : 10 }} />
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: compact ? 5 : 8 }}>
-                <ProfileAvatar size={compact ? 18 : 26} />
-                <span style={{ fontSize: compact ? 7 : 10, fontWeight: 600, color: "rgba(255,255,255,0.4)" }}>
-                  @luizsantos.ia
-                </span>
-              </div>
-              <div style={{ display: "flex", gap: compact ? 3 : 4 }}>
-                {Array.from({ length: total }).map((_, i) => (
-                  <div key={i} style={{
-                    width: i === index ? (compact ? 10 : 14) : (compact ? 4 : 5),
-                    height: compact ? 4 : 5, borderRadius: 3,
-                    background: i === index ? "#4F8CFF" : "rgba(255,255,255,0.15)",
-                    transition: "all 0.2s",
-                  }} />
-                ))}
-              </div>
-            </div>
-          </div>
+          <Footer />
         </>
       )}
     </div>
