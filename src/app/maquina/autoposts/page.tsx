@@ -10,6 +10,8 @@ import {
 interface Slide {
   titulo: string;
   corpo: string;
+  imageUrl?: string | null;
+  imageQuery?: string;
 }
 
 interface Rascunho {
@@ -66,93 +68,189 @@ function SlideCard({
   slide: Slide; index: number; total: number; compact?: boolean;
 }) {
   const isCover = index === 0;
-  const pad = compact ? 13 : 22;
-  const footerPad = compact ? 9 : 15;
+  const pad = compact ? 11 : 18;
+
+  const TAGS = ["CAPA", "PROBLEMA", "SOLUÇÃO", "RESULTADO", "CTA"];
+  const tag = TAGS[index] ?? `${index + 1}`;
+
+  const hasImage = Boolean(slide.imageUrl);
 
   return (
     <div style={{
       width: "100%", aspectRatio: "1 / 1",
-      background: "#000000",
+      background: "#000",
       borderRadius: compact ? 10 : 14,
       overflow: "hidden", position: "relative",
       display: "flex", flexDirection: "column",
-      border: "1px solid rgba(255,255,255,0.07)",
+      border: "1px solid rgba(255,255,255,0.08)",
       userSelect: "none",
     }}>
       {/* Linha de acento no topo */}
       <div style={{
         height: compact ? 2 : 3, flexShrink: 0,
-        background: "linear-gradient(90deg, #4F8CFF 0%, #a855f7 60%, #4F8CFF 100%)",
+        background: "linear-gradient(90deg, #4F8CFF 0%, #a855f7 55%, #4F8CFF 100%)",
       }} />
 
-      {/* Número do slide — canto superior direito */}
-      <div style={{
-        position: "absolute", top: compact ? 10 : 14, right: compact ? 10 : 16,
-        fontSize: compact ? 8 : 10, fontWeight: 700,
-        color: "rgba(255,255,255,0.22)", letterSpacing: "0.06em",
-      }}>
-        {index + 1}/{total}
-      </div>
-
-      {/* Conteúdo central */}
-      <div style={{
-        flex: 1, display: "flex", flexDirection: "column",
-        justifyContent: "center", overflow: "hidden",
-        padding: `${compact ? 10 : 16}px ${pad}px`,
-        gap: compact ? 7 : 12,
-      }}>
-        {/* Tag de número (slides de conteúdo, não cover) */}
-        {!isCover && !compact && (
+      {hasImage ? (
+        /* ── Layout COM imagem ── */
+        <>
+          {/* Imagem ocupa a metade superior */}
           <div style={{
-            fontSize: 9, fontWeight: 800, color: "#4F8CFF",
-            letterSpacing: "0.12em", textTransform: "uppercase",
+            flex: "0 0 50%", overflow: "hidden", position: "relative",
+            margin: compact ? "8px 10px 0" : "12px 14px 0",
+            borderRadius: compact ? 6 : 10,
           }}>
-            {index === total - 1 ? "CONCLUSÃO" : `PONTO ${index}`}
+            <img
+              src={slide.imageUrl!}
+              alt={slide.imageQuery ?? slide.titulo}
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            />
+            {/* Tag de seção sobre a imagem */}
+            <div style={{
+              position: "absolute", top: compact ? 5 : 8, left: compact ? 6 : 10,
+              fontSize: compact ? 7 : 9, fontWeight: 800, letterSpacing: "0.1em",
+              color: "#fff", background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)",
+              borderRadius: 4, padding: compact ? "2px 5px" : "3px 7px",
+            }}>
+              {tag}
+            </div>
+            {/* Número do slide */}
+            <div style={{
+              position: "absolute", top: compact ? 5 : 8, right: compact ? 6 : 10,
+              fontSize: compact ? 7 : 9, fontWeight: 700,
+              color: "rgba(255,255,255,0.7)", background: "rgba(0,0,0,0.5)",
+              borderRadius: 4, padding: compact ? "2px 5px" : "3px 7px",
+            }}>
+              {index + 1}/{total}
+            </div>
           </div>
-        )}
 
-        {/* Título */}
-        <div style={{
-          fontSize: isCover ? (compact ? 13 : 20) : (compact ? 11 : 16),
-          fontWeight: 800, color: "#ffffff",
-          lineHeight: 1.2, letterSpacing: isCover ? "-0.5px" : "-0.2px",
-          display: "-webkit-box",
-          WebkitLineClamp: isCover ? 4 : 3,
-          WebkitBoxOrient: "vertical",
-          overflow: "hidden",
-        }}>
-          {slide.titulo}
-        </div>
-
-        {/* Corpo */}
-        <div style={{
-          fontSize: compact ? 9 : 12,
-          color: "rgba(255,255,255,0.5)",
-          lineHeight: 1.65,
-          display: "-webkit-box",
-          WebkitLineClamp: compact ? 3 : 5,
-          WebkitBoxOrient: "vertical",
-          overflow: "hidden",
-        }}>
-          {slide.corpo}
-        </div>
-      </div>
-
-      {/* Rodapé: foto + handle */}
-      <div style={{ padding: `0 ${pad}px ${footerPad}px`, flexShrink: 0 }}>
-        <div style={{
-          height: 1, background: "rgba(255,255,255,0.07)", marginBottom: footerPad,
-        }} />
-        <div style={{ display: "flex", alignItems: "center", gap: compact ? 6 : 9 }}>
-          <ProfileAvatar size={compact ? 20 : 28} />
-          <span style={{
-            fontSize: compact ? 8 : 11, fontWeight: 600,
-            color: "rgba(255,255,255,0.45)", letterSpacing: "0.01em",
+          {/* Texto abaixo da imagem */}
+          <div style={{
+            flex: 1, display: "flex", flexDirection: "column",
+            justifyContent: "center", overflow: "hidden",
+            padding: compact ? "6px 10px 0" : "10px 14px 0",
+            gap: compact ? 3 : 5,
           }}>
-            @luizsantos.ia
-          </span>
-        </div>
-      </div>
+            <div style={{
+              fontSize: isCover ? (compact ? 12 : 17) : (compact ? 10 : 14),
+              fontWeight: 800, color: "#fff",
+              lineHeight: 1.2, letterSpacing: "-0.2px",
+              display: "-webkit-box",
+              WebkitLineClamp: compact ? 2 : 3,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+            }}>
+              {slide.titulo}
+            </div>
+            {!compact && (
+              <div style={{
+                fontSize: 11, color: "rgba(255,255,255,0.45)",
+                lineHeight: 1.55,
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical",
+                overflow: "hidden",
+              }}>
+                {slide.corpo}
+              </div>
+            )}
+          </div>
+
+          {/* Rodapé */}
+          <div style={{ padding: `0 ${pad}px ${compact ? 8 : 12}px`, flexShrink: 0 }}>
+            <div style={{ height: 1, background: "rgba(255,255,255,0.07)", marginBottom: compact ? 6 : 9 }} />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: compact ? 5 : 8 }}>
+                <ProfileAvatar size={compact ? 18 : 26} />
+                <span style={{ fontSize: compact ? 7 : 10, fontWeight: 600, color: "rgba(255,255,255,0.4)" }}>
+                  @luizsantos.ia
+                </span>
+              </div>
+              <div style={{ display: "flex", gap: compact ? 3 : 4 }}>
+                {Array.from({ length: total }).map((_, i) => (
+                  <div key={i} style={{
+                    width: i === index ? (compact ? 10 : 14) : (compact ? 4 : 5),
+                    height: compact ? 4 : 5, borderRadius: 3,
+                    background: i === index ? "#4F8CFF" : "rgba(255,255,255,0.15)",
+                    transition: "all 0.2s",
+                  }} />
+                ))}
+              </div>
+            </div>
+          </div>
+        </>
+      ) : (
+        /* ── Layout SEM imagem (fallback texto) ── */
+        <>
+          {/* Tag + número */}
+          <div style={{
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+            padding: compact ? "8px 11px 0" : "14px 18px 0", flexShrink: 0,
+          }}>
+            <span style={{
+              fontSize: compact ? 7 : 9, fontWeight: 800, color: "#4F8CFF",
+              letterSpacing: "0.1em", textTransform: "uppercase",
+            }}>{tag}</span>
+            <span style={{ fontSize: compact ? 7 : 9, fontWeight: 700, color: "rgba(255,255,255,0.2)" }}>
+              {index + 1}/{total}
+            </span>
+          </div>
+
+          {/* Conteúdo central */}
+          <div style={{
+            flex: 1, display: "flex", flexDirection: "column",
+            justifyContent: "center", overflow: "hidden",
+            padding: compact ? "8px 11px" : "12px 18px",
+            gap: compact ? 7 : 12,
+          }}>
+            <div style={{
+              fontSize: isCover ? (compact ? 13 : 20) : (compact ? 11 : 17),
+              fontWeight: 800, color: "#fff",
+              lineHeight: 1.2, letterSpacing: "-0.3px",
+              display: "-webkit-box",
+              WebkitLineClamp: isCover ? 4 : 3,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+            }}>
+              {slide.titulo}
+            </div>
+            <div style={{
+              fontSize: compact ? 9 : 12, color: "rgba(255,255,255,0.45)",
+              lineHeight: 1.65,
+              display: "-webkit-box",
+              WebkitLineClamp: compact ? 4 : 6,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+            }}>
+              {slide.corpo}
+            </div>
+          </div>
+
+          {/* Rodapé */}
+          <div style={{ padding: `0 ${pad}px ${compact ? 9 : 14}px`, flexShrink: 0 }}>
+            <div style={{ height: 1, background: "rgba(255,255,255,0.07)", marginBottom: compact ? 7 : 10 }} />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: compact ? 5 : 8 }}>
+                <ProfileAvatar size={compact ? 18 : 26} />
+                <span style={{ fontSize: compact ? 7 : 10, fontWeight: 600, color: "rgba(255,255,255,0.4)" }}>
+                  @luizsantos.ia
+                </span>
+              </div>
+              <div style={{ display: "flex", gap: compact ? 3 : 4 }}>
+                {Array.from({ length: total }).map((_, i) => (
+                  <div key={i} style={{
+                    width: i === index ? (compact ? 10 : 14) : (compact ? 4 : 5),
+                    height: compact ? 4 : 5, borderRadius: 3,
+                    background: i === index ? "#4F8CFF" : "rgba(255,255,255,0.15)",
+                    transition: "all 0.2s",
+                  }} />
+                ))}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

@@ -29,26 +29,76 @@ Responda APENAS com JSON no formato exato (sem markdown, sem texto extra):
 {
   "topico": "Título curto do tema (máx 6 palavras)",
   "slides": [
-    {"titulo": "Gancho forte para empresários (máx 8 palavras)", "corpo": "2-3 frases que criem urgência ou curiosidade"},
-    {"titulo": "O problema sem IA (máx 7 palavras)", "corpo": "A dor real que o empresário sente — seja específico"},
-    {"titulo": "A solução com IA (máx 7 palavras)", "corpo": "Como aplicar na prática — mencione ferramentas se possível"},
-    {"titulo": "Resultado comprovado (máx 7 palavras)", "corpo": "Dado real, percentual ou case — ex: 'empresa X reduziu 40% dos custos'"},
-    {"titulo": "Sua empresa está pronta? (máx 8 palavras)", "corpo": "CTA direto: pergunta, desafio ou convite para agir agora"}
+    {
+      "titulo": "Gancho forte para empresários (máx 8 palavras)",
+      "corpo": "2-3 frases que criem urgência ou curiosidade",
+      "imageQuery": "2-4 keywords in English for Pexels image search — specific and visual, ex: 'robot automation factory' or 'businessman data charts'"
+    },
+    {
+      "titulo": "O problema sem IA (máx 7 palavras)",
+      "corpo": "A dor real que o empresário sente — seja específico",
+      "imageQuery": "keywords in English for this problem — ex: 'stressed employee office paperwork'"
+    },
+    {
+      "titulo": "A solução com IA (máx 7 palavras)",
+      "corpo": "Como aplicar na prática — mencione ferramentas se possível",
+      "imageQuery": "keywords in English for the AI solution — ex: 'artificial intelligence machine learning technology'"
+    },
+    {
+      "titulo": "Resultado comprovado (máx 7 palavras)",
+      "corpo": "Dado real, percentual ou case — ex: 'empresa X reduziu 40% dos custos'",
+      "imageQuery": "keywords in English for success/results — ex: 'business growth chart success'"
+    },
+    {
+      "titulo": "Sua empresa está pronta? (máx 8 palavras)",
+      "corpo": "CTA direto: pergunta, desafio ou convite para agir agora",
+      "imageQuery": "keywords in English for call to action — ex: 'entrepreneur laptop startup office'"
+    }
   ],
   "legenda": "Legenda para Instagram: comece com gancho impactante, parágrafos curtos, emojis estratégicos, termine com 15-20 hashtags empresariais"
 }
 
 REGRAS OBRIGATÓRIAS:
 - Português do Brasil, linguagem direta e profissional — como um consultor de negócios
+- imageQuery SEMPRE em inglês, 2-4 palavras específicas e visuais
 - Foco sempre em ROI, produtividade e vantagem competitiva
-- Evite termos técnicos sem explicação
 - Use dados e números reais sempre que possível
-- Hashtags: #iaparaempresas #inteligenciaartificial #automacaoempresarial #gestao #empreendedorismo #pme #negocios #transformacaodigital #produtividade #iabusiness #tecnologiaempresarial #startups #inovacao #lideranca #marketingdigital`;
+- Hashtags: #iaparaempresas #inteligenciaartificial #automacaoempresarial #gestao #empreendedorismo #pme #negocios #transformacaodigital #produtividade #iabusiness`;
+
+interface RawSlide {
+  titulo: string;
+  corpo: string;
+  imageQuery?: string;
+}
 
 interface ParsedContent {
   topico: string;
-  slides: { titulo: string; corpo: string }[];
+  slides: RawSlide[];
   legenda: string;
+}
+
+interface SlideWithImage extends RawSlide {
+  imageUrl: string | null;
+}
+
+async function fetchPexelsImage(query: string): Promise<string | null> {
+  const key = process.env.PEXELS_API_KEY;
+  if (!key || !query.trim()) return null;
+  try {
+    const res = await fetch(
+      `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=5&orientation=square&size=medium`,
+      { headers: { Authorization: key }, cache: "no-store" }
+    );
+    if (!res.ok) return null;
+    const data = await res.json() as { photos?: { src: { medium: string } }[] };
+    const photos = data.photos ?? [];
+    if (photos.length === 0) return null;
+    // Pega uma foto aleatória entre as 5 para variar
+    const pick = photos[Math.floor(Math.random() * photos.length)];
+    return pick.src.medium;
+  } catch {
+    return null;
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -67,7 +117,7 @@ export async function POST(req: NextRequest) {
 
   const userPrompt = topicoManual
     ? `Crie o carrossel sobre este tema específico: "${topicoManual}"`
-    : "Escolha um tema atual e relevante sobre IA para o carrossel de hoje.";
+    : "Escolha um tema atual e relevante sobre IA para negócios para o carrossel de hoje.";
 
   const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -103,10 +153,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Resposta inválida da IA. Tente novamente." }, { status: 500 });
   }
 
+  // Busca imagens em paralelo para cada slide
+  const slidesWithImages: SlideWithImage[] = await Promise.all(
+    parsed.slides.map(async (slide) => ({
+      ...slide,
+      imageUrl: await fetchPexelsImage(slide.imageQuery ?? parsed.topico),
+    }))
+  );
+
   const rascunho = await prisma.postRascunho.create({
     data: {
       topico: parsed.topico,
-      slides: JSON.stringify(parsed.slides),
+      slides: JSON.stringify(slidesWithImages),
       legenda: parsed.legenda,
       status: "RASCUNHO",
       atualizadoEm: new Date(),
