@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Loader2, Wand2, ChevronLeft, ChevronRight,
   Check, X, Trash2, AlertCircle, Edit2, Save,
-  ChevronDown, ChevronUp, Plus,
+  ChevronDown, ChevronUp, Plus, Send,
 } from "lucide-react";
 
 interface Slide {
@@ -253,8 +253,10 @@ function RascunhoCard({
   onPrevSlide,
   onNextSlide,
   onMudarStatus,
+  onPublicar,
   onDeletar,
   actionId,
+  publicandoId,
 }: {
   r: Rascunho;
   expanded: boolean;
@@ -263,8 +265,10 @@ function RascunhoCard({
   onPrevSlide: () => void;
   onNextSlide: () => void;
   onMudarStatus: (id: string, status: string) => void;
+  onPublicar: (id: string) => void;
   onDeletar: (id: string) => void;
   actionId: string | null;
+  publicandoId: string | null;
 }) {
   const [editingLegenda, setEditingLegenda] = useState(false);
   const [legendaEdit, setLegendaEdit] = useState(r.legenda);
@@ -501,20 +505,30 @@ function RascunhoCard({
                     borderRadius: 10, padding: "10px 14px",
                   }}>
                     <Check size={14} style={{ color: "#22C55E", flexShrink: 0 }} />
-                    <span style={{ fontSize: 13, color: "#22C55E", fontWeight: 600 }}>Post aprovado</span>
+                    <span style={{ fontSize: 13, color: "#22C55E", fontWeight: 600 }}>Post aprovado — pronto para publicar</span>
                   </div>
-                  <div style={{
-                    fontSize: 12, color: "#5d7899",
-                    background: "rgba(124,92,255,0.05)", border: "1px solid rgba(124,92,255,0.12)",
-                    borderRadius: 10, padding: "10px 14px", lineHeight: 1.5,
-                  }}>
-                    Publicação direta no Instagram em breve — por enquanto, copie a legenda e publique os slides manualmente.
-                  </div>
+
+                  <button
+                    onClick={() => onPublicar(r.id)}
+                    disabled={publicandoId === r.id}
+                    style={{
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
+                      padding: "12px", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer",
+                      background: "linear-gradient(135deg, #4F8CFF 0%, #7C5CFF 100%)",
+                      border: "none", color: "#fff", transition: "opacity 0.15s",
+                      opacity: publicandoId === r.id ? 0.65 : 1,
+                    }}
+                  >
+                    {publicandoId === r.id
+                      ? <><Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> Publicando…</>
+                      : <><Send size={14} /> Publicar no Instagram</>}
+                  </button>
+
                   <button
                     onClick={() => onMudarStatus(r.id, "RASCUNHO")}
                     style={{ fontSize: 11, color: "#4a617f", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", textAlign: "left" }}
                   >
-                    Desfazer aprovação
+                    Voltar para rascunho
                   </button>
                   <button
                     onClick={() => onDeletar(r.id)}
@@ -569,6 +583,8 @@ export default function AutoPostsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [slideIdxMap, setSlideIdxMap] = useState<Record<string, number>>({});
   const [actionId, setActionId] = useState<string | null>(null);
+  const [publicandoId, setPublicandoId] = useState<string | null>(null);
+  const [erroPublicar, setErroPublicar] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -612,6 +628,20 @@ export default function AutoPostsPage() {
       const updated: Rascunho = await res.json();
       setRascunhos(prev => prev.map(r => r.id === id ? updated : r));
     }
+  }
+
+  async function publicar(id: string) {
+    setPublicandoId(id);
+    setErroPublicar(prev => { const n = { ...prev }; delete n[id]; return n; });
+    const res = await fetch(`/api/autoposts/rascunhos/${id}/publicar`, { method: "POST" });
+    const d = await res.json().catch(() => ({}));
+    setPublicandoId(null);
+    if (!res.ok) {
+      setErroPublicar(prev => ({ ...prev, [id]: (d as { error?: string }).error ?? "Erro ao publicar" }));
+      return;
+    }
+    const updated = (d as { rascunho?: Rascunho }).rascunho;
+    if (updated) setRascunhos(prev => prev.map(r => r.id === id ? updated : r));
   }
 
   async function deletar(id: string) {
@@ -721,18 +751,31 @@ export default function AutoPostsPage() {
                 {pendentes.map(r => {
                   const slides: Slide[] = (() => { try { return JSON.parse(r.slides); } catch { return []; } })();
                   return (
-                    <RascunhoCard
-                      key={r.id}
-                      r={r}
-                      expanded={expandedId === r.id}
-                      slideIdx={getSlideIdx(r.id)}
-                      onToggle={() => setExpandedId(prev => prev === r.id ? null : r.id)}
-                      onPrevSlide={() => prevSlide(r.id)}
-                      onNextSlide={() => nextSlide(r.id, slides.length)}
-                      onMudarStatus={mudarStatus}
-                      onDeletar={deletar}
-                      actionId={actionId}
-                    />
+                    <div key={r.id}>
+                      <RascunhoCard
+                        r={r}
+                        expanded={expandedId === r.id}
+                        slideIdx={getSlideIdx(r.id)}
+                        onToggle={() => setExpandedId(prev => prev === r.id ? null : r.id)}
+                        onPrevSlide={() => prevSlide(r.id)}
+                        onNextSlide={() => nextSlide(r.id, slides.length)}
+                        onMudarStatus={mudarStatus}
+                        onPublicar={publicar}
+                        onDeletar={deletar}
+                        actionId={actionId}
+                        publicandoId={publicandoId}
+                      />
+                      {erroPublicar[r.id] && (
+                        <div style={{
+                          display: "flex", alignItems: "center", gap: 8, marginTop: 6,
+                          background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.22)",
+                          borderRadius: 10, padding: "9px 14px", color: "#f87171", fontSize: 12,
+                        }}>
+                          <AlertCircle size={13} style={{ flexShrink: 0 }} />
+                          {erroPublicar[r.id]}
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
               </div>
@@ -748,18 +791,31 @@ export default function AutoPostsPage() {
                 {historico.map(r => {
                   const slides: Slide[] = (() => { try { return JSON.parse(r.slides); } catch { return []; } })();
                   return (
-                    <RascunhoCard
-                      key={r.id}
-                      r={r}
-                      expanded={expandedId === r.id}
-                      slideIdx={getSlideIdx(r.id)}
-                      onToggle={() => setExpandedId(prev => prev === r.id ? null : r.id)}
-                      onPrevSlide={() => prevSlide(r.id)}
-                      onNextSlide={() => nextSlide(r.id, slides.length)}
-                      onMudarStatus={mudarStatus}
-                      onDeletar={deletar}
-                      actionId={actionId}
-                    />
+                    <div key={r.id}>
+                      <RascunhoCard
+                        r={r}
+                        expanded={expandedId === r.id}
+                        slideIdx={getSlideIdx(r.id)}
+                        onToggle={() => setExpandedId(prev => prev === r.id ? null : r.id)}
+                        onPrevSlide={() => prevSlide(r.id)}
+                        onNextSlide={() => nextSlide(r.id, slides.length)}
+                        onMudarStatus={mudarStatus}
+                        onPublicar={publicar}
+                        onDeletar={deletar}
+                        actionId={actionId}
+                        publicandoId={publicandoId}
+                      />
+                      {erroPublicar[r.id] && (
+                        <div style={{
+                          display: "flex", alignItems: "center", gap: 8, marginTop: 6,
+                          background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.22)",
+                          borderRadius: 10, padding: "9px 14px", color: "#f87171", fontSize: 12,
+                        }}>
+                          <AlertCircle size={13} style={{ flexShrink: 0 }} />
+                          {erroPublicar[r.id]}
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
               </div>
