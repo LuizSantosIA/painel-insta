@@ -229,6 +229,32 @@ model Config {
   atualizadoEm DateTime @updatedAt
 }
 
+// ─── Instagram DMs ───────────────────────────────────────────────────────────
+
+model IgConversation {
+  id          String     @id
+  igUserId    String     @default("")
+  igUsername  String     @default("")
+  updatedAt   DateTime
+  syncedAt    DateTime   @default(now())
+  messages    IgMessage[]
+
+  @@index([updatedAt])
+}
+
+model IgMessage {
+  id             String         @id
+  conversationId String
+  conversation   IgConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  text           String         @default("")
+  fromMe         Boolean        @default(false)
+  fromUsername   String         @default("")
+  createdAt      DateTime
+  syncedAt       DateTime       @default(now())
+
+  @@index([conversationId, createdAt])
+}
+
 // ─── Auto Posts ──────────────────────────────────────────────────────────────
 
 // status: RASCUNHO | APROVADO | REJEITADO | PUBLICADO

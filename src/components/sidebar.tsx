@@ -6,7 +6,7 @@ import {
   Sun, Briefcase, Cpu,
   Users, TrendingUp, CheckSquare, DollarSign, Activity, Flag,
   LayoutDashboard, Images, Sparkles, Plug,
-  Clock, CalendarDays, Wand2, Bot, Zap, Camera, Layers,
+  Clock, CalendarDays, Wand2, Bot, Zap, Camera, Layers, MessageCircle,
 } from "lucide-react";
 
 type SubItem = { href: string; label: string; icon: React.ElementType };
@@ -52,6 +52,7 @@ const NAV: NavItem[] = [
       { href: "/maquina/automacoes",   label: "Automações",        icon: Zap },
       { href: "/maquina/gerador",      label: "Gerador",           icon: Wand2 },
       { href: "/maquina/autoposts",    label: "Auto Posts",        icon: Layers },
+      { href: "/maquina/dms",          label: "DMs",               icon: MessageCircle },
       { href: "/maquina/chat",         label: "Assistente IA",     icon: Bot },
       { href: "/maquina/integracao",   label: "Integração",        icon: Plug },
     ],
