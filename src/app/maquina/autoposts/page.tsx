@@ -70,7 +70,7 @@ function SlideCard({
   const isCover = index === 0;
   const pad = compact ? 11 : 18;
 
-  const TAGS = ["CAPA", "PROBLEMA", "SOLUÇÃO", "RESULTADO", "CTA"];
+  const TAGS = ["CAPA", "CONTEXTO", "IMPACTO", "AÇÃO", "CTA"];
   const tag = TAGS[index] ?? `${index + 1}`;
 
   const hasImage = Boolean(slide.imageUrl);
@@ -128,14 +128,14 @@ function SlideCard({
           {/* Texto abaixo da imagem */}
           <div style={{
             flex: 1, display: "flex", flexDirection: "column",
-            justifyContent: "center", overflow: "hidden",
+            justifyContent: "flex-start", overflow: "hidden",
             padding: compact ? "6px 10px 0" : "10px 14px 0",
-            gap: compact ? 3 : 5,
+            gap: compact ? 3 : 6,
           }}>
             <div style={{
-              fontSize: isCover ? (compact ? 12 : 17) : (compact ? 10 : 14),
+              fontSize: isCover ? (compact ? 12 : 16) : (compact ? 10 : 13),
               fontWeight: 800, color: "#fff",
-              lineHeight: 1.2, letterSpacing: "-0.2px",
+              lineHeight: 1.25, letterSpacing: "-0.2px",
               display: "-webkit-box",
               WebkitLineClamp: compact ? 2 : 3,
               WebkitBoxOrient: "vertical",
@@ -145,12 +145,13 @@ function SlideCard({
             </div>
             {!compact && (
               <div style={{
-                fontSize: 11, color: "rgba(255,255,255,0.45)",
-                lineHeight: 1.55,
+                fontSize: 10.5, color: "rgba(255,255,255,0.5)",
+                lineHeight: 1.6,
                 display: "-webkit-box",
-                WebkitLineClamp: 2,
+                WebkitLineClamp: 4,
                 WebkitBoxOrient: "vertical",
                 overflow: "hidden",
+                whiteSpace: "pre-line",
               }}>
                 {slide.corpo}
               </div>
@@ -216,12 +217,13 @@ function SlideCard({
               {slide.titulo}
             </div>
             <div style={{
-              fontSize: compact ? 9 : 12, color: "rgba(255,255,255,0.45)",
+              fontSize: compact ? 9 : 12, color: "rgba(255,255,255,0.5)",
               lineHeight: 1.65,
               display: "-webkit-box",
-              WebkitLineClamp: compact ? 4 : 6,
+              WebkitLineClamp: compact ? 4 : 8,
               WebkitBoxOrient: "vertical",
               overflow: "hidden",
+              whiteSpace: "pre-line",
             }}>
               {slide.corpo}
             </div>

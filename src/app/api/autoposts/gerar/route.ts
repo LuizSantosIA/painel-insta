@@ -68,15 +68,15 @@ async function fetchPexelsImage(query: string): Promise<string | null> {
   if (!key || !query.trim()) return null;
   try {
     const res = await fetch(
-      `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=5&orientation=square&size=medium`,
-      { headers: { Authorization: key }, cache: "no-store", signal: AbortSignal.timeout(5000) }
+      `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=10&orientation=square`,
+      { headers: { Authorization: key }, cache: "no-store", signal: AbortSignal.timeout(8000) }
     );
     if (!res.ok) return null;
-    const data = await res.json() as { photos?: { src: { medium: string } }[] };
+    const data = await res.json() as { photos?: { src: { large: string; medium: string } }[] };
     const photos = data.photos ?? [];
     if (photos.length === 0) return null;
-    const pick = photos[Math.floor(Math.random() * photos.length)];
-    return pick.src.medium;
+    const pick = photos[Math.floor(Math.random() * Math.min(photos.length, 5))];
+    return pick.src.large ?? pick.src.medium;
   } catch {
     return null;
   }
@@ -99,45 +99,46 @@ MISSÃO: Crie um carrossel de 5 slides baseado em UMA das notícias acima (ou no
 O carrossel deve explicar o que a notícia significa na prática para empresas brasileiras.
 
 ESTRUTURA OBRIGATÓRIA:
-- Slide 1 (CAPA): Manchete adaptada — fato real + impacto no empresário. Curta, impactante, sem rodeios.
-- Slide 2 (CONTEXTO): O que está acontecendo de verdade? Explique o cenário com dados do artigo.
-- Slide 3 (IMPACTO): O que isso muda para empresas? Seja específico — setor, tamanho, processo.
-- Slide 4 (AÇÃO): O que o empresário deve fazer AGORA? Passo concreto e acionável.
-- Slide 5 (CTA): Pergunta que provoca reflexão ou gera comentário.
+- Slide 1 (CAPA): Manchete chocante. Fato real com número ou nome de empresa. Máx 10 palavras no título. Subtexto: 3-4 frases que contextualizam o fato e por que o empresário deve parar para ler.
+- Slide 2 (CONTEXTO): Explique o que está acontecendo com profundidade. Use dados do artigo — números, empresas citadas, datas. 4-5 frases densas. O leitor deve sair deste slide sabendo exatamente o que está acontecendo no mundo.
+- Slide 3 (IMPACTO): Como isso impacta empresas BRASILEIRAS de pequeno e médio porte? Seja específico: quais setores, quais processos, quais cargos. 4-5 frases com exemplos concretos ("Uma empresa de RH com 50 funcionários pode...").
+- Slide 4 (AÇÃO): 3-5 ações específicas e acionáveis que o empresário pode fazer AGORA. Liste com bullet points: "• Experimente X", "• Avalie se Y", "• Pergunte ao fornecedor Z". Inclua ferramenta ou recurso específico quando possível.
+- Slide 5 (CTA): Pergunta direta e provocativa que gera comentário ou reflexão. Pode ser polêmica. Termina com incentivo para salvar o carrossel ou seguir o perfil.
 
-TOME COMO REFERÊNCIA o estilo @castilho.ia: frases curtas, fatos reais, zero enrolação, tom de consultor que entende do assunto.
+ESTILO: @castilho.ia, @alanvalletta — linguagem direta, zero enrolação, parece que foi escrito por quem sabe do que fala.
+PROIBIDO: frases genéricas como "a IA está transformando o mundo", "as empresas precisam se adaptar", "o futuro é agora". Seja ESPECÍFICO.
 
 Responda APENAS com JSON (sem markdown, sem texto extra):
 {
   "topico": "Título da notícia adaptado (máx 7 palavras)",
   "slides": [
     {
-      "titulo": "Manchete impactante — fato real (máx 9 palavras)",
-      "corpo": "2-3 frases curtas e diretas. Use dados reais se disponível.",
-      "imageQuery": "2-4 palavras em inglês para buscar imagem no Pexels — seja visual e específico"
+      "titulo": "Manchete com fato real e número (máx 10 palavras)",
+      "corpo": "3-4 frases contextualizando — por que isso importa para o empresário brasileiro agora.",
+      "imageQuery": "2-4 specific English keywords for visual Pexels image — e.g. 'artificial intelligence robot factory' or 'CEO meeting technology'"
     },
     {
-      "titulo": "O que está acontecendo (máx 7 palavras)",
-      "corpo": "Contexto real com dado ou número concreto da notícia.",
-      "imageQuery": "keywords in English for context image"
+      "titulo": "O que está acontecendo de verdade (máx 8 palavras)",
+      "corpo": "4-5 frases com dados, empresas citadas, números concretos do artigo. Seja jornalístico.",
+      "imageQuery": "specific English keywords for context image — e.g. 'data center servers nvidia' or 'ai startup funding'"
     },
     {
-      "titulo": "O que muda para sua empresa (máx 7 palavras)",
-      "corpo": "Impacto prático e específico para empresas brasileiras.",
-      "imageQuery": "keywords in English for business impact image"
+      "titulo": "O que muda para sua empresa (máx 8 palavras)",
+      "corpo": "4-5 frases com exemplos concretos para PMEs brasileiras. Setores específicos. Processos específicos.",
+      "imageQuery": "specific English keywords — e.g. 'small business owner laptop automation' or 'team productivity office'"
     },
     {
       "titulo": "O que fazer agora (máx 6 palavras)",
-      "corpo": "Passo acionável e concreto. Ferramenta ou estratégia específica se possível.",
-      "imageQuery": "keywords in English for action/solution image"
+      "corpo": "• Ação 1 específica com ferramenta\n• Ação 2 específica\n• Ação 3 específica\n• Recurso ou link relevante se aplicável",
+      "imageQuery": "specific English keywords — e.g. 'entrepreneur planning strategy whiteboard' or 'business growth chart laptop'"
     },
     {
-      "titulo": "Sua empresa está preparada? (máx 7 palavras)",
-      "corpo": "Pergunta provocativa que gera reflexão e comentários.",
-      "imageQuery": "keywords in English for entrepreneur thinking future"
+      "titulo": "Pergunta provocativa para o empresário (máx 8 palavras)",
+      "corpo": "2-3 frases que provocam reflexão genuína. Pode ser polêmica. Termina com CTA para salvar ou comentar.",
+      "imageQuery": "specific English keywords — e.g. 'businessman thinking future technology' or 'innovation disruption business'"
     }
   ],
-  "legenda": "Legenda para Instagram: primeira frase = manchete do fato real. Parágrafos curtos. Emojis usados com moderação e intenção. 15-20 hashtags ao final: misture populares e de nicho (#iaparaempresas #inteligenciaartificial #negocios #empreendedorismo #automacao #gestao #transformacaodigital #iabusiness #tecnologia #startups)"
+  "legenda": "Legenda para Instagram com 300-400 palavras: abre com a manchete do fato real (primeira frase impactante). Desenvolve os pontos principais em parágrafos curtos. Tom de consultor que explica para o cliente. Emojis estratégicos (máx 5). Termina com pergunta para gerar comentário. Espaço em branco antes dos hashtags. 20 hashtags misturando populares e de nicho: #iaparaempresas #inteligenciaartificial #negocios #empreendedorismo #automacao #gestao #transformacaodigital #iabusiness #tecnologia #startups #ia #artificialintelligence #pme #gpt #inovacao #futurodonegocio #marketingdigital #produtividade #lideranca #crescimento"
 }`;
 }
 
