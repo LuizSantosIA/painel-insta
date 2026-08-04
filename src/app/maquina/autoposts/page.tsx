@@ -385,52 +385,42 @@ function RascunhoCard({
             </div>
 
             {/* Coluna direita: legenda + ações */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
-              {/* Legenda */}
-              <div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: "#4a617f", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                    Legenda do post
-                  </span>
-                  {!editingLegenda && (
-                    <button
-                      onClick={() => { setEditingLegenda(true); setLegendaEdit(r.legenda); }}
-                      style={{ background: "none", border: "none", cursor: "pointer", color: "#4a617f", display: "flex", alignItems: "center", gap: 4, fontSize: 11 }}
-                    >
-                      <Edit2 size={11} /> Editar
-                    </button>
-                  )}
-                </div>
+            <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
 
+              {/* Cabeçalho legenda */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: "#4a617f", textTransform: "uppercase", letterSpacing: "0.07em" }}>
+                  Legenda do post
+                </span>
+                {!editingLegenda && (
+                  <button
+                    onClick={() => { setEditingLegenda(true); setLegendaEdit(r.legenda); }}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "#4a617f", display: "flex", alignItems: "center", gap: 4, fontSize: 11 }}
+                  >
+                    <Edit2 size={11} /> Editar
+                  </button>
+                )}
+              </div>
+
+              {/* Legenda — ocupa espaço disponível */}
+              <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
                 {editingLegenda ? (
-                  <div>
+                  <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: 8 }}>
                     <textarea
                       value={legendaEdit}
                       onChange={e => setLegendaEdit(e.target.value)}
-                      rows={10}
                       className="input"
-                      style={{ width: "100%", fontSize: 12, lineHeight: 1.65, resize: "vertical" }}
+                      style={{ flex: 1, fontSize: 12, lineHeight: 1.65, resize: "none", width: "100%" }}
                       autoFocus
                     />
-                    <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                      <button
-                        onClick={salvarLegenda}
-                        disabled={saving}
-                        className="btn-primary"
-                        style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, padding: "6px 14px" }}
-                      >
-                        {saving
-                          ? <Loader2 size={12} style={{ animation: "spin 1s linear infinite" }} />
-                          : <Save size={12} />}
+                    <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                      <button onClick={salvarLegenda} disabled={saving} className="btn-primary"
+                        style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, padding: "6px 14px" }}>
+                        {saving ? <Loader2 size={12} style={{ animation: "spin 1s linear infinite" }} /> : <Save size={12} />}
                         Salvar
                       </button>
-                      <button
-                        onClick={() => setEditingLegenda(false)}
-                        style={{
-                          background: "none", border: "1px solid rgba(79,140,255,0.2)",
-                          borderRadius: 8, padding: "6px 12px", fontSize: 12, color: "#4a617f", cursor: "pointer",
-                        }}
-                      >
+                      <button onClick={() => setEditingLegenda(false)}
+                        style={{ background: "none", border: "1px solid rgba(79,140,255,0.2)", borderRadius: 8, padding: "6px 12px", fontSize: 12, color: "#4a617f", cursor: "pointer" }}>
                         Cancelar
                       </button>
                     </div>
@@ -439,7 +429,8 @@ function RascunhoCard({
                   <div style={{
                     fontSize: 12, color: "#8aa4bf", lineHeight: 1.7,
                     background: "rgba(79,140,255,0.04)", borderRadius: 10, padding: "12px 14px",
-                    border: "1px solid rgba(79,140,255,0.08)", maxHeight: 220, overflowY: "auto",
+                    border: "1px solid rgba(79,140,255,0.08)",
+                    maxHeight: 200, overflowY: "auto",
                     whiteSpace: "pre-wrap", wordBreak: "break-word",
                   }}>
                     {r.legenda}
@@ -447,123 +438,142 @@ function RascunhoCard({
                 )}
               </div>
 
-              {/* Ações — RASCUNHO */}
-              {r.status === "RASCUNHO" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: "auto" }}>
-                  <button
-                    onClick={() => onMudarStatus(r.id, "APROVADO")}
-                    disabled={isActing}
-                    style={{
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
-                      padding: "11px", borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer",
-                      background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)",
-                      color: "#22C55E", transition: "all 0.15s",
-                    }}
-                  >
-                    {isActing
-                      ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />
-                      : <Check size={14} />}
-                    Aprovar post
-                  </button>
-                  <button
-                    onClick={() => onMudarStatus(r.id, "REJEITADO")}
-                    disabled={isActing}
-                    style={{
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
-                      padding: "11px", borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer",
-                      background: "rgba(107,114,128,0.08)", border: "1px solid rgba(107,114,128,0.2)",
-                      color: "#6b7280", transition: "all 0.15s",
-                    }}
-                  >
-                    <X size={14} /> Rejeitar
-                  </button>
-                  <div style={{ height: 1, background: "rgba(79,140,255,0.07)", margin: "2px 0" }} />
-                  <button
-                    onClick={() => onDeletar(r.id)}
-                    disabled={isDeleting}
-                    style={{
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
-                      padding: "8px", borderRadius: 8, fontSize: 12, cursor: "pointer",
-                      background: "none", border: "1px solid rgba(239,68,68,0.15)", color: "#4a617f",
-                      transition: "all 0.15s",
-                    }}
-                    onMouseEnter={e => { const b = e.currentTarget; b.style.color = "#f87171"; b.style.borderColor = "rgba(239,68,68,0.35)"; }}
-                    onMouseLeave={e => { const b = e.currentTarget; b.style.color = "#4a617f"; b.style.borderColor = "rgba(239,68,68,0.15)"; }}
-                  >
-                    {isDeleting ? <Loader2 size={12} style={{ animation: "spin 1s linear infinite" }} /> : <Trash2 size={12} />}
-                    Excluir rascunho
-                  </button>
-                </div>
-              )}
+              {/* Separador + Ações — sempre fixos no rodapé da coluna */}
+              <div style={{ flexShrink: 0, marginTop: 14 }}>
+                <div style={{ height: 1, background: "rgba(79,140,255,0.1)", marginBottom: 14 }} />
 
-              {/* Ações — APROVADO */}
-              {r.status === "APROVADO" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: "auto" }}>
-                  <div style={{
-                    display: "flex", alignItems: "center", gap: 8,
-                    background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.2)",
-                    borderRadius: 10, padding: "10px 14px",
-                  }}>
-                    <Check size={14} style={{ color: "#22C55E", flexShrink: 0 }} />
-                    <span style={{ fontSize: 13, color: "#22C55E", fontWeight: 600 }}>Post aprovado — pronto para publicar</span>
+                {/* ── RASCUNHO ── */}
+                {r.status === "RASCUNHO" && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {/* Linha principal: Aprovar + Rejeitar lado a lado */}
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        onClick={() => onMudarStatus(r.id, "APROVADO")}
+                        disabled={isActing}
+                        style={{
+                          flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
+                          padding: "11px 12px", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer",
+                          background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.35)",
+                          color: "#22C55E", transition: "all 0.15s",
+                        }}
+                      >
+                        {isActing ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Check size={14} />}
+                        Aprovar post
+                      </button>
+                      <button
+                        onClick={() => onMudarStatus(r.id, "REJEITADO")}
+                        disabled={isActing}
+                        style={{
+                          display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                          padding: "11px 16px", borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer",
+                          background: "rgba(107,114,128,0.07)", border: "1px solid rgba(107,114,128,0.22)",
+                          color: "#6b7280", transition: "all 0.15s", whiteSpace: "nowrap",
+                        }}
+                      >
+                        <X size={14} /> Rejeitar
+                      </button>
+                    </div>
+                    {/* Linha secundária: excluir */}
+                    <button
+                      onClick={() => onDeletar(r.id)}
+                      disabled={isDeleting}
+                      style={{
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
+                        padding: "7px", borderRadius: 8, fontSize: 11, cursor: "pointer",
+                        background: "none", border: "1px solid rgba(239,68,68,0.14)", color: "#4a617f",
+                        transition: "all 0.15s",
+                      }}
+                      onMouseEnter={e => { const b = e.currentTarget; b.style.color = "#f87171"; b.style.borderColor = "rgba(239,68,68,0.35)"; }}
+                      onMouseLeave={e => { const b = e.currentTarget; b.style.color = "#4a617f"; b.style.borderColor = "rgba(239,68,68,0.14)"; }}
+                    >
+                      {isDeleting ? <Loader2 size={11} style={{ animation: "spin 1s linear infinite" }} /> : <Trash2 size={11} />}
+                      Excluir rascunho
+                    </button>
                   </div>
+                )}
 
-                  <button
-                    onClick={() => onPublicar(r.id)}
-                    disabled={publicandoId === r.id}
-                    style={{
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
-                      padding: "12px", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer",
-                      background: "linear-gradient(135deg, #4F8CFF 0%, #7C5CFF 100%)",
-                      border: "none", color: "#fff", transition: "opacity 0.15s",
-                      opacity: publicandoId === r.id ? 0.65 : 1,
-                    }}
-                  >
-                    {publicandoId === r.id
-                      ? <><Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> Publicando…</>
-                      : <><Send size={14} /> Publicar no Instagram</>}
-                  </button>
+                {/* ── APROVADO ── */}
+                {r.status === "APROVADO" && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <button
+                      onClick={() => onPublicar(r.id)}
+                      disabled={publicandoId === r.id}
+                      style={{
+                        width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                        padding: "13px", borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: "pointer",
+                        background: "linear-gradient(135deg, #4F8CFF 0%, #7C5CFF 100%)",
+                        border: "none", color: "#fff",
+                        boxShadow: "0 4px 18px rgba(79,140,255,0.28)",
+                        opacity: publicandoId === r.id ? 0.65 : 1,
+                        transition: "opacity 0.15s",
+                      }}
+                    >
+                      {publicandoId === r.id
+                        ? <><Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} /> Publicando no Instagram…</>
+                        : <><Send size={15} /> Publicar no Instagram</>}
+                    </button>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <button
+                        onClick={() => onMudarStatus(r.id, "RASCUNHO")}
+                        style={{ fontSize: 11, color: "#4a617f", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
+                      >
+                        Voltar para rascunho
+                      </button>
+                      <button
+                        onClick={() => onDeletar(r.id)}
+                        disabled={isDeleting}
+                        style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#4a617f", background: "none", border: "none", cursor: "pointer" }}
+                        onMouseEnter={e => { e.currentTarget.style.color = "#f87171"; }}
+                        onMouseLeave={e => { e.currentTarget.style.color = "#4a617f"; }}
+                      >
+                        {isDeleting ? <Loader2 size={11} style={{ animation: "spin 1s linear infinite" }} /> : <Trash2 size={11} />}
+                        Excluir
+                      </button>
+                    </div>
+                  </div>
+                )}
 
-                  <button
-                    onClick={() => onMudarStatus(r.id, "RASCUNHO")}
-                    style={{ fontSize: 11, color: "#4a617f", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", textAlign: "left" }}
-                  >
-                    Voltar para rascunho
-                  </button>
-                  <button
-                    onClick={() => onDeletar(r.id)}
-                    disabled={isDeleting}
-                    style={{
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
-                      padding: "7px", borderRadius: 8, fontSize: 11, cursor: "pointer",
-                      background: "none", border: "1px solid rgba(239,68,68,0.12)", color: "#4a617f",
-                    }}
-                  >
-                    {isDeleting ? <Loader2 size={11} style={{ animation: "spin 1s linear infinite" }} /> : <Trash2 size={11} />}
-                    Excluir
-                  </button>
-                </div>
-              )}
+                {/* ── REJEITADO ── */}
+                {r.status === "REJEITADO" && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <button
+                      onClick={() => onMudarStatus(r.id, "RASCUNHO")}
+                      className="btn-primary"
+                      style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "11px", fontSize: 13, width: "100%" }}
+                    >
+                      Restaurar para revisão
+                    </button>
+                    <button
+                      onClick={() => onDeletar(r.id)}
+                      disabled={isDeleting}
+                      style={{ fontSize: 11, color: "#4a617f", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", textAlign: "center" }}
+                    >
+                      {isDeleting ? "Excluindo…" : "Excluir definitivamente"}
+                    </button>
+                  </div>
+                )}
 
-              {/* Ações — REJEITADO */}
-              {r.status === "REJEITADO" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: "auto" }}>
-                  <button
-                    onClick={() => onMudarStatus(r.id, "RASCUNHO")}
-                    className="btn-primary"
-                    style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "9px", fontSize: 13 }}
-                  >
-                    Restaurar para revisão
-                  </button>
-                  <button
-                    onClick={() => onDeletar(r.id)}
-                    disabled={isDeleting}
-                    style={{ fontSize: 11, color: "#4a617f", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
-                  >
-                    Excluir definitivamente
-                  </button>
-                </div>
-              )}
+                {/* ── PUBLICADO ── */}
+                {r.status === "PUBLICADO" && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{
+                      display: "flex", alignItems: "center", gap: 8,
+                      background: "rgba(124,92,255,0.08)", border: "1px solid rgba(124,92,255,0.22)",
+                      borderRadius: 10, padding: "11px 14px",
+                    }}>
+                      <Check size={14} style={{ color: "#7C5CFF", flexShrink: 0 }} />
+                      <span style={{ fontSize: 13, color: "#7C5CFF", fontWeight: 600 }}>Publicado no Instagram</span>
+                    </div>
+                    <button
+                      onClick={() => onDeletar(r.id)}
+                      disabled={isDeleting}
+                      style={{ fontSize: 11, color: "#4a617f", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", textAlign: "center" }}
+                    >
+                      {isDeleting ? "Excluindo…" : "Excluir do histórico"}
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
