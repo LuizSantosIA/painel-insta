@@ -8,6 +8,8 @@ interface Slide {
   titulo: string;
   corpo: string;
   imageUrl?: string | null;
+  companyName?: string | null;
+  brandColor?: string | null;
 }
 
 interface IgApiResponse {
@@ -73,8 +75,10 @@ export async function POST(
 ) {
   const { id } = await params;
 
-  const token = process.env.IG_ACCESS_TOKEN;
-  const userId = process.env.IG_USER_ID;
+  // Strip BOM (pode surgir via arquivo .env com encoding Windows ou pipe do PowerShell)
+  const stripBom = (v?: string) => (v ?? "").replace(/^﻿/, "").replace(/^\xEF\xBB\xBF/, "");
+  const token  = stripBom(process.env.IG_ACCESS_TOKEN);
+  const userId = stripBom(process.env.IG_USER_ID);
   if (!token || !userId) {
     return NextResponse.json(
       { error: "Token do Instagram não configurado" },
@@ -123,8 +127,9 @@ export async function POST(
         i: String(i),
         t: String(slides.length),
       });
-      // CAPA com foto do Pexels: passa a URL da imagem para compor
-      if (i === 0 && slide.imageUrl) p.set("img", slide.imageUrl);
+      if (i === 0 && slide.imageUrl)    p.set("img",     slide.imageUrl);
+      if (i === 0 && slide.companyName) p.set("company", slide.companyName);
+      if (i === 0 && slide.brandColor)  p.set("color",   slide.brandColor);
       return `${baseUrl}/api/autoposts/slide-image?${p.toString()}`;
     });
 
