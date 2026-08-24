@@ -54,22 +54,65 @@ model AccountSnapshot {
 
 // Regra de automação: quando keyword aparecer num comentário, dispara replyText.
 model AutoRule {
-  id           String       @id @default(cuid())
-  name         String       @default("")
-  keywords     String       // palavras-chave separadas por vírgula
-  replyText    String       @default("") // resposta pública no comentário (vazio = não responde)
-  sendDm       Boolean      @default(false)
-  dmText       String       @default("") // texto do direct
+  id           String  @id @default(cuid())
+  name         String  @default("")
+  keywords     String // palavras-chave separadas por vírgula
+  replyText    String  @default("") // resposta pública no comentário (vazio = não responde)
+  sendDm       Boolean @default(false)
+  dmText       String  @default("") // texto do direct
   mediaId      String? // id da mídia (igId) à qual a regra se restringe; null = todos os posts
-  isActive     Boolean      @default(true)
-  triggerCount Int          @default(0)
-  createLead   Boolean      @default(false) // se true, cria Lead quando a regra dispara
-  leadLinha    String?      // INNOBI | MENTORIA | SERVICOS — obrigatório se createLead=true
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  logs         CommentLog[]
+  isActive     Boolean @default(true)
+  triggerCount Int     @default(0)
+  createLead   Boolean @default(false) // se true, cria Lead quando a regra dispara
+  leadLinha    String? // INNOBI | MENTORIA | SERVICOS — obrigatório se createLead=true
+
+  // Gatilho: de onde a regra pode disparar.
+  // COMENTARIO (padrão, comportamento antigo) | DM (direct e resposta de story) | AMBOS
+  gatilho String @default("COMENTARIO")
+
+  // ─── Trava de seguidor ("siga para liberar o link") ───
+  exigirSeguir    Boolean      @default(false)
+  linkLiberado    String       @default("") // URL entregue depois que a pessoa segue
+  gateAskText     String       @default("") // mensagem pedindo o follow
+  gateButtonLabel String       @default("Seguindo") // título do quick reply (máx. 20 chars)
+  gateDeliverText String       @default("") // mensagem de entrega do link
+  gateLinkLabel   String       @default("Acessar") // título do botão web_url (máx. 20 chars)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  logs            CommentLog[]
+  gates           FollowGate[]
 
   @@index([mediaId])
+}
+
+// Estado da trava de seguidor, por pessoa + regra.
+// PENDING = já pedimos o follow e estamos esperando o clique no botão.
+// DELIVERED = já confirmamos o follow e entregamos o link.
+model FollowGate {
+  id          String    @id @default(cuid())
+  igsid       String // Instagram-scoped ID de quem vai receber o link
+  ruleId      String
+  rule        AutoRule  @relation(fields: [ruleId], references: [id])
+  status      String    @default("PENDING") // PENDING | DELIVERED
+  attempts    Int       @default(0) // quantas vezes a pessoa clicou sem estar seguindo
+  username    String    @default("")
+  origem      String    @default("COMENTARIO") // COMENTARIO | DM
+  postId      String?
+  deliveredAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([igsid, ruleId])
+  @@index([igsid])
+}
+
+// Idempotência dos webhooks de mensagem — o Meta reenvia o mesmo mid em caso de falha.
+model DmEvent {
+  id        String   @id @default(cuid())
+  mid       String   @unique
+  igsid     String
+  text      String   @default("")
+  createdAt DateTime @default(now())
 }
 
 // Log de cada comentário processado pelas regras.
@@ -90,23 +133,23 @@ model CommentLog {
 // ─── CRM ────────────────────────────────────────────────────────────────────
 
 model Client {
-  id        String    @id @default(cuid())
-  name      String
-  email     String?
-  phone     String?
-  instagram String?
-  company   String?
-  notes     String?
-  status    String    @default("lead") // lead | active | inactive | lost
-  source    String?   // instagram | whatsapp | referral | organic | other
-  tags      String?   // separadas por vírgula
+  id              String    @id @default(cuid())
+  name            String
+  email           String?
+  phone           String?
+  instagram       String?
+  company         String?
+  notes           String?
+  status          String    @default("lead") // lead | active | inactive | lost
+  source          String? // instagram | whatsapp | referral | organic | other
+  tags            String? // separadas por vírgula
   ultimoContatoEm DateTime? // atualizado manualmente via "Registrar contato" na tela de Saúde
-  saudeNota       String?   // nota interna sobre a situação do cliente
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deals     Deal[]
-  tasks     Task[]
-  receitas  Receita[]
+  saudeNota       String? // nota interna sobre a situação do cliente
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deals           Deal[]
+  tasks           Task[]
+  receitas        Receita[]
 }
 
 model Deal {
@@ -159,7 +202,7 @@ model Lead {
   valorEstimadoCentavos Int?
   proximaAcao           String?
   proximaAcaoEm         DateTime?
-  postOrigemId          String?   // preenchido pela Fase 3
+  postOrigemId          String? // preenchido pela Fase 3
   notas                 String?
   criadoEm              DateTime  @default(now())
   atualizadoEm          DateTime  @updatedAt
@@ -175,7 +218,7 @@ model Lead {
 model Compromisso {
   id           String    @id @default(cuid())
   descricao    String
-  para         String    // nome, @handle ou "cliente X" — para quem foi a promessa
+  para         String // nome, @handle ou "cliente X" — para quem foi a promessa
   prazoEm      DateTime
   cumprido     Boolean   @default(false)
   cumpridoEm   DateTime?
@@ -196,13 +239,13 @@ model Compromisso {
 model Receita {
   id            String    @id @default(cuid())
   descricao     String
-  valorCentavos Int       // NUNCA Float — dinheiro sempre em centavos
-  linha         String    // INNOBI | MENTORIA | SERVICOS
-  tipo          String    // RECORRENTE | PONTUAL
+  valorCentavos Int // NUNCA Float — dinheiro sempre em centavos
+  linha         String // INNOBI | MENTORIA | SERVICOS
+  tipo          String // RECORRENTE | PONTUAL
   status        String    @default("PREVISTA")
   clienteId     String?
   cliente       Client?   @relation(fields: [clienteId], references: [id], onDelete: SetNull)
-  competencia   DateTime  // sempre dia 1 do mês, UTC
+  competencia   DateTime // sempre dia 1 do mês, UTC
   dataRecebida  DateTime?
   criadoEm      DateTime  @default(now())
   atualizadoEm  DateTime  @updatedAt
@@ -232,12 +275,12 @@ model Config {
 // ─── Instagram DMs ───────────────────────────────────────────────────────────
 
 model IgConversation {
-  id          String     @id
-  igUserId    String     @default("")
-  igUsername  String     @default("")
-  updatedAt   DateTime
-  syncedAt    DateTime   @default(now())
-  messages    IgMessage[]
+  id         String      @id
+  igUserId   String      @default("")
+  igUsername String      @default("")
+  updatedAt  DateTime
+  syncedAt   DateTime    @default(now())
+  messages   IgMessage[]
 
   @@index([updatedAt])
 }

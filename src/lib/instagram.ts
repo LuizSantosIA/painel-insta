@@ -17,7 +17,8 @@ import { prisma } from "@/lib/prisma";
  * e chamar POST /api/sync (botão "Sincronizar" no painel).
  */
 
-const strip = (v?: string) => (v ?? "").replace(/^﻿/, "");
+// Remove BOM (tanto U+FEFF quanto os 3 bytes ï»¿ do Windows)
+const strip = (v?: string) => (v ?? "").replace(/^﻿/, "").replace(/^\xEF\xBB\xBF/, "");
 
 const API_VERSION = strip(process.env.IG_API_VERSION) || "v21.0";
 const BASE = `https://graph.instagram.com/${API_VERSION}`;
@@ -206,6 +207,130 @@ export async function sendDirectMessage(recipientId: string, message: string): P
   });
   const json = await res.json();
   if (!res.ok) throw new Error(json?.error?.message ?? "Erro ao enviar DM");
+}
+
+// ─── Perfil do usuário e botões (trava de seguidor) ──────────────────────────
+
+export interface IgUserProfile {
+  id: string;
+  name?: string;
+  username?: string;
+  profile_pic?: string;
+  follower_count?: number;
+  is_user_follow_business?: boolean;
+  is_business_follow_user?: boolean;
+  is_verified_user?: boolean;
+}
+
+/** Perfil de quem conversa com a gente, pelo IGSID.
+ *  Só funciona depois que a pessoa manda uma mensagem (a Meta chama isso de consentimento);
+ *  antes disso a API responde erro — por isso quem chama trata a exceção. */
+export async function getUserProfile(igsid: string): Promise<IgUserProfile> {
+  return graphGet<IgUserProfile>(igsid, {
+    fields: "name,username,profile_pic,follower_count,is_user_follow_business,is_verified_user",
+  });
+}
+
+/** A pessoa segue a conta?  null = não deu para saber (sem consentimento, bloqueio ou erro). */
+export async function isFollower(igsid: string): Promise<boolean | null> {
+  try {
+    const perfil = await getUserProfile(igsid);
+    return perfil.is_user_follow_business ?? null;
+  } catch (e) {
+    console.error("[instagram] isFollower falhou para", igsid, (e as Error).message);
+    return null;
+  }
+}
+
+/** Quick replies aceitam no máximo 20 caracteres no título. */
+const QUICK_REPLY_MAX = 20;
+
+export interface QuickReply {
+  title: string;
+  payload: string;
+}
+
+async function postMessage(recipient: Record<string, string>, message: unknown): Promise<void> {
+  const token = strip(process.env.IG_ACCESS_TOKEN);
+  const userId = strip(process.env.IG_USER_ID);
+  const res = await fetch(`${BASE}/${userId}/messages`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ recipient, message, access_token: token }),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json?.error?.message ?? "Erro ao enviar mensagem");
+}
+
+/** Texto + chips de resposta rápida. Ao tocar, o título vira uma mensagem do usuário
+ *  e o payload chega no webhook em messaging[].message.quick_reply.payload. */
+export async function sendQuickReplies(
+  recipientId: string,
+  text: string,
+  replies: QuickReply[]
+): Promise<void> {
+  await postMessage(
+    { id: recipientId },
+    {
+      text,
+      quick_replies: replies.slice(0, 13).map((r) => ({
+        content_type: "text",
+        title: r.title.slice(0, QUICK_REPLY_MAX),
+        payload: r.payload,
+      })),
+    }
+  );
+}
+
+export interface UrlButton {
+  title: string;
+  url: string;
+}
+
+/** Template de botão: texto + até 3 botões que abrem uma URL no navegador in-app. */
+export async function sendUrlButtons(
+  recipientId: string,
+  text: string,
+  buttons: UrlButton[]
+): Promise<void> {
+  await postMessage(
+    { id: recipientId },
+    {
+      attachment: {
+        type: "template",
+        payload: {
+          template_type: "button",
+          text: text.slice(0, 640),
+          buttons: buttons.slice(0, 3).map((b) => ({
+            type: "web_url",
+            title: b.title.slice(0, QUICK_REPLY_MAX),
+            url: b.url,
+          })),
+        },
+      },
+    }
+  );
+}
+
+/** Mesma coisa que sendQuickReplies, mas endereçado a um comentário (private reply).
+ *  A doc da Meta não confirma que private reply aceita quick_replies, então quem chama
+ *  precisa ter um fallback em texto puro. */
+export async function sendQuickRepliesToCommenter(
+  commentId: string,
+  text: string,
+  replies: QuickReply[]
+): Promise<void> {
+  await postMessage(
+    { comment_id: commentId },
+    {
+      text,
+      quick_replies: replies.slice(0, 13).map((r) => ({
+        content_type: "text",
+        title: r.title.slice(0, QUICK_REPLY_MAX),
+        payload: r.payload,
+      })),
+    }
+  );
 }
 
 export interface SyncResult {

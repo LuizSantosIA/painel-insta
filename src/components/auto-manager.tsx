@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import {
   Trash2, Pencil, Zap, MessageSquare, Send,
   ChevronDown, Loader2, AlertCircle, CheckCircle2,
-  ToggleLeft, ToggleRight, Plus, X, Check, ChevronRight,
+  ToggleLeft, ToggleRight, Plus, X, Check, ChevronRight, Lock, Link2,
 } from "lucide-react";
 
 interface Rule {
@@ -19,6 +19,13 @@ interface Rule {
   triggerCount: number;
   createLead: boolean;
   leadLinha: string | null;
+  gatilho: string;
+  exigirSeguir: boolean;
+  linkLiberado: string;
+  gateAskText: string;
+  gateButtonLabel: string;
+  gateDeliverText: string;
+  gateLinkLabel: string;
 }
 
 interface Post {
@@ -55,7 +62,24 @@ const LINHAS_RECEITA = [
   { key: "SERVICOS", label: "Serviços" },
 ];
 
-const EMPTY_FORM = { name: "", keywords: "", replyText: "", sendDm: false, dmText: "", mediaId: "", createLead: false, leadLinha: "SERVICOS" };
+const GATILHOS = [
+  { key: "COMENTARIO", label: "Comentário no post" },
+  { key: "DM",         label: "Direct / resposta de story" },
+  { key: "AMBOS",      label: "Comentário e direct" },
+];
+
+const ASK_PADRAO =
+  "Para conseguir te liberar o link, preciso que me siga (e depois clique em seguindo para validar)! Assim já te envio";
+const DELIVER_PADRAO = "Clique para Acessar o material (Gratuito)";
+
+const EMPTY_FORM = {
+  name: "", keywords: "", replyText: "", sendDm: false, dmText: "", mediaId: "",
+  createLead: false, leadLinha: "SERVICOS",
+  gatilho: "COMENTARIO",
+  exigirSeguir: false, linkLiberado: "",
+  gateAskText: "", gateButtonLabel: "Seguindo",
+  gateDeliverText: "", gateLinkLabel: "Acessar",
+};
 
 export function AutoManager({ posts }: { posts: Post[] }) {
   const [rules, setRules] = useState<Rule[]>([]);
@@ -100,6 +124,13 @@ export function AutoManager({ posts }: { posts: Post[] }) {
       mediaId: rule.mediaId ?? "",
       createLead: rule.createLead,
       leadLinha: rule.leadLinha ?? "SERVICOS",
+      gatilho: rule.gatilho ?? "COMENTARIO",
+      exigirSeguir: rule.exigirSeguir ?? false,
+      linkLiberado: rule.linkLiberado ?? "",
+      gateAskText: rule.gateAskText ?? "",
+      gateButtonLabel: rule.gateButtonLabel || "Seguindo",
+      gateDeliverText: rule.gateDeliverText ?? "",
+      gateLinkLabel: rule.gateLinkLabel || "Acessar",
     });
     setFormError(null);
     setDrawerOpen(true);
@@ -114,7 +145,8 @@ export function AutoManager({ posts }: { posts: Post[] }) {
 
   async function saveRule() {
     if (!form.keywords.trim()) { setFormError("Preencha ao menos uma palavra-chave."); return; }
-    if (!form.replyText.trim() && !form.dmText.trim()) { setFormError("Preencha a resposta no comentário ou o texto do direct."); return; }
+    if (!form.replyText.trim() && !form.dmText.trim() && !form.exigirSeguir) { setFormError("Preencha a resposta no comentário ou o texto do direct."); return; }
+    if (form.exigirSeguir && !/^https?:\/\//i.test(form.linkLiberado.trim())) { setFormError("Informe o link que será liberado (começando com http:// ou https://)."); return; }
     if (form.dmText.length > 1000) { setFormError("O texto do direct ultrapassa 1000 caracteres."); return; }
     if (form.createLead && !form.leadLinha) { setFormError("Escolha a linha de receita para gerar leads."); return; }
     setSaving(true);
@@ -124,7 +156,7 @@ export function AutoManager({ posts }: { posts: Post[] }) {
         const res = await fetch(`/api/automacoes/rules/${editingId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...form, sendDm: form.sendDm, createLead: form.createLead }),
+          body: JSON.stringify({ ...form, sendDm: form.sendDm, createLead: form.createLead, exigirSeguir: form.exigirSeguir }),
         });
         const updated: Rule = await res.json();
         setRules((prev) => prev.map((r) => (r.id === editingId ? updated : r)));
@@ -286,6 +318,13 @@ export function AutoManager({ posts }: { posts: Post[] }) {
                       <span className="inline-flex items-center gap-1 text-xs font-medium text-brand">
                         <Send className="h-3 w-3" /> DM:
                       </span>{" "}{rule.dmText}
+                    </p>
+                  )}
+                  {rule.exigirSeguir && rule.linkLiberado && (
+                    <p className="line-clamp-1 text-sm text-muted">
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-400">
+                        <Lock className="h-3 w-3" /> Exige follow:
+                      </span>{" "}{rule.linkLiberado}
                     </p>
                   )}
                   {rule.createLead && rule.leadLinha && (
@@ -476,6 +515,25 @@ export function AutoManager({ posts }: { posts: Post[] }) {
               </div>
 
               <div className="space-y-1">
+                <label className="text-xs font-medium text-muted">Disparar a partir de</label>
+                <div className="relative">
+                  <select
+                    value={form.gatilho}
+                    onChange={(e) => setForm((f) => ({ ...f, gatilho: e.target.value }))}
+                    className="w-full appearance-none rounded-lg border border-border bg-surface-2 px-3 py-2.5 pr-8 text-sm outline-none focus:border-brand"
+                  >
+                    {GATILHOS.map((g) => (
+                      <option key={g.key} value={g.key}>{g.label}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+                </div>
+                <p className="text-xs text-muted">
+                  Direct exige que o webhook esteja assinando o campo <code>messages</code> no app da Meta.
+                </p>
+              </div>
+
+              <div className="space-y-1">
                 <label className="text-xs font-medium text-muted">Aplicar em</label>
                 <div className="relative">
                   <select
@@ -535,6 +593,97 @@ export function AutoManager({ posts }: { posts: Post[] }) {
                   </p>
                 </div>
               )}
+
+              {/* Trava de seguidor */}
+              <div className="rounded-xl border border-border bg-surface-2/30 p-4 space-y-3">
+                <button
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, exigirSeguir: !f.exigirSeguir }))}
+                  className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2.5 text-sm transition-colors ${
+                    form.exigirSeguir
+                      ? "border-amber-500/40 bg-amber-500/10 text-amber-400"
+                      : "border-border bg-surface-2 text-muted hover:text-foreground"
+                  }`}
+                >
+                  <Lock className="h-4 w-4" />
+                  {form.exigirSeguir ? "Exigir follow para liberar o link" : "Exigir que siga para pegar o link?"}
+                  {form.exigirSeguir
+                    ? <ToggleRight className="ml-auto h-5 w-5 text-amber-400" />
+                    : <ToggleLeft className="ml-auto h-5 w-5" />}
+                </button>
+
+                {form.exigirSeguir && (
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted">
+                        Link liberado <span className="text-rose-400">*</span>
+                      </label>
+                      <div className="relative">
+                        <Link2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+                        <input
+                          type="url"
+                          value={form.linkLiberado}
+                          onChange={(e) => setForm((f) => ({ ...f, linkLiberado: e.target.value }))}
+                          placeholder="https://seusite.com/material"
+                          className="w-full rounded-lg border border-amber-500/30 bg-amber-500/5 py-2.5 pl-9 pr-3 text-sm placeholder:text-muted outline-none focus:border-amber-400"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted">Mensagem pedindo o follow</label>
+                      <textarea
+                        value={form.gateAskText}
+                        onChange={(e) => setForm((f) => ({ ...f, gateAskText: e.target.value }))}
+                        placeholder={ASK_PADRAO}
+                        rows={3}
+                        className="w-full resize-none rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm placeholder:text-muted outline-none focus:border-amber-400"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted">Texto do botão de validação</label>
+                      <input
+                        type="text"
+                        maxLength={20}
+                        value={form.gateButtonLabel}
+                        onChange={(e) => setForm((f) => ({ ...f, gateButtonLabel: e.target.value }))}
+                        placeholder="Seguindo"
+                        className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm placeholder:text-muted outline-none focus:border-amber-400"
+                      />
+                      <p className="text-right text-xs text-muted">{form.gateButtonLabel.length}/20</p>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted">Mensagem de entrega</label>
+                      <textarea
+                        value={form.gateDeliverText}
+                        onChange={(e) => setForm((f) => ({ ...f, gateDeliverText: e.target.value }))}
+                        placeholder={DELIVER_PADRAO}
+                        rows={2}
+                        className="w-full resize-none rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm placeholder:text-muted outline-none focus:border-amber-400"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted">Texto do botão do link</label>
+                      <input
+                        type="text"
+                        maxLength={20}
+                        value={form.gateLinkLabel}
+                        onChange={(e) => setForm((f) => ({ ...f, gateLinkLabel: e.target.value }))}
+                        placeholder="Acessar"
+                        className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm placeholder:text-muted outline-none focus:border-amber-400"
+                      />
+                    </div>
+
+                    <p className="text-xs text-muted">
+                      Quem já segue recebe o link na hora. Quem não segue recebe o pedido de novo a cada
+                      clique, até seguir (no máximo 8 vezes).
+                    </p>
+                  </div>
+                )}
+              </div>
 
               {/* Pipeline toggle */}
               <div className="rounded-xl border border-border bg-surface-2/30 p-4 space-y-3">

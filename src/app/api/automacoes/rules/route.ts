@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+const GATILHOS = ["COMENTARIO", "DM", "AMBOS"];
+
 export async function GET() {
   const rules = await prisma.autoRule.findMany({ orderBy: { createdAt: "asc" } });
   return NextResponse.json(rules);
@@ -8,14 +10,37 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
-  const { name, keywords, replyText, dmText, mediaId, leadLinha } = body as Record<string, string | undefined>;
+  const {
+    name,
+    keywords,
+    replyText,
+    dmText,
+    mediaId,
+    leadLinha,
+    gatilho,
+    linkLiberado,
+    gateAskText,
+    gateButtonLabel,
+    gateDeliverText,
+    gateLinkLabel,
+  } = body as Record<string, string | undefined>;
   const sendDm = Boolean((body as Record<string, unknown>).sendDm);
   const createLead = Boolean((body as Record<string, unknown>).createLead);
+  const exigirSeguir = Boolean((body as Record<string, unknown>).exigirSeguir);
 
   if (!keywords?.trim()) {
     return NextResponse.json({ error: "keywords é obrigatório" }, { status: 400 });
   }
-  if (!replyText?.trim() && !dmText?.trim()) {
+  if (gatilho && !GATILHOS.includes(gatilho)) {
+    return NextResponse.json({ error: "gatilho inválido" }, { status: 400 });
+  }
+  if (exigirSeguir && !/^https?:\/\//i.test(linkLiberado?.trim() ?? "")) {
+    return NextResponse.json(
+      { error: "Informe o link (começando com http:// ou https://) que será liberado depois do follow" },
+      { status: 400 }
+    );
+  }
+  if (!replyText?.trim() && !dmText?.trim() && !exigirSeguir) {
     return NextResponse.json({ error: "Preencha a resposta no comentário ou o texto do direct" }, { status: 400 });
   }
   if (createLead && !leadLinha) {
@@ -32,6 +57,13 @@ export async function POST(req: NextRequest) {
       mediaId: mediaId?.trim() || null,
       createLead,
       leadLinha: createLead ? (leadLinha ?? null) : null,
+      gatilho: gatilho ?? "COMENTARIO",
+      exigirSeguir,
+      linkLiberado: exigirSeguir ? (linkLiberado?.trim() ?? "") : "",
+      gateAskText: gateAskText?.trim() ?? "",
+      gateButtonLabel: gateButtonLabel?.trim() || "Seguindo",
+      gateDeliverText: gateDeliverText?.trim() ?? "",
+      gateLinkLabel: gateLinkLabel?.trim() || "Acessar",
     },
   });
   return NextResponse.json(rule, { status: 201 });

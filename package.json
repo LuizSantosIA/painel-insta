@@ -12,6 +12,7 @@
     "db:migrate-pipeline": "tsx prisma/migrate-pipeline.ts",
     "db:migrate-gerador": "tsx prisma/migrate-gerador.ts",
     "db:migrate-dms": "tsx prisma/migrate-dms.ts",
+    "db:migrate-followgate": "tsx prisma/migrate-followgate.ts",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "test": "vitest run",

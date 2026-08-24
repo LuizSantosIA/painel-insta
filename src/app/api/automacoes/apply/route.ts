@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { fetchComments, replyToComment, sendDirectMessage, isConfigured } from "@/lib/instagram";
+import { fetchComments, replyToComment, sendDmToCommenter, isConfigured } from "@/lib/instagram";
+import { gateConfigurado, iniciarGatePorComentario } from "@/lib/follow-gate";
 
 function matchesRule(text: string, keywords: string): boolean {
   const kws = keywords.split(",").map((k) => k.trim().toLowerCase()).filter(Boolean);
@@ -23,7 +24,9 @@ export async function POST(req: NextRequest) {
 
   const [comments, rules] = await Promise.all([
     fetchComments(mediaId),
-    prisma.autoRule.findMany({ where: { isActive: true } }),
+    prisma.autoRule.findMany({
+      where: { isActive: true, gatilho: { in: ["COMENTARIO", "AMBOS"] } },
+    }),
   ]);
 
   if (comments.length === 0) {
@@ -61,7 +64,8 @@ export async function POST(req: NextRequest) {
 
     const senderId = comment.from?.id ?? "";
     const willReply = rule.replyText.trim().length > 0;
-    const willDm = rule.sendDm && rule.dmText.trim().length > 0 && !!senderId;
+    const usaGate = gateConfigurado(rule);
+    const willDm = usaGate || (rule.sendDm && rule.dmText.trim().length > 0);
 
     preview.push({
       commentId: comment.id,
@@ -83,8 +87,18 @@ export async function POST(req: NextRequest) {
         catch { skipped++; }
       }
 
-      if (rule.sendDm && rule.dmText.trim() && senderId) {
-        try { await sendDirectMessage(senderId, rule.dmText); dmSentOk = true; dmSent++; }
+      if (usaGate) {
+        // Trava de seguidor: manda o pedido de follow com botão em vez do dmText.
+        const resultado = await iniciarGatePorComentario(
+          rule,
+          comment.id,
+          senderId,
+          comment.username ?? "",
+          mediaId
+        );
+        if (resultado === "PEDIDO_ENVIADO") { dmSentOk = true; dmSent++; }
+      } else if (rule.sendDm && rule.dmText.trim()) {
+        try { await sendDmToCommenter(comment.id, rule.dmText); dmSentOk = true; dmSent++; }
         catch { /* DM failure não bloqueia o log */ }
       }
 
