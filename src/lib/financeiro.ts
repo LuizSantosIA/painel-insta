@@ -69,6 +69,38 @@ export function calcRunway(
   return Math.floor(saldoCentavos / media);
 }
 
+export interface ResumoFinanceiro {
+  mrrAtual: number;
+  mrrVariacao: number | null;
+  receitaPontual: number;
+  aReceber: number;
+  runway: number | null;
+  saldoCaixa: number;
+}
+
+/**
+ * Monta o resumo financeiro do mês a partir dos dados crus.
+ * Usado pela tela de Financeiro e pelo painel de /negocio — a regra vive só aqui.
+ */
+export function calcResumoFinanceiro(params: {
+  receitasMes: ReceitaLike[];
+  receitasMesAnterior: ReceitaLike[];
+  saldoCentavos: number;
+  despesasPorMes: DespesaMes[];
+}): ResumoFinanceiro {
+  const mrrAtual = calcMRR(params.receitasMes);
+  const mrrAnterior = calcMRR(params.receitasMesAnterior);
+
+  return {
+    mrrAtual,
+    mrrVariacao: calcVariacao(mrrAtual, mrrAnterior),
+    receitaPontual: calcReceitaPontual(params.receitasMes),
+    aReceber: calcAReceber(params.receitasMes),
+    runway: calcRunway(params.saldoCentavos, params.despesasPorMes),
+    saldoCaixa: params.saldoCentavos,
+  };
+}
+
 /** Variação percentual entre dois valores em centavos. */
 export function calcVariacao(atual: number, anterior: number): number | null {
   if (anterior === 0) return null;

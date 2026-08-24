@@ -11,6 +11,20 @@ export const ESTAGIOS_PIPELINE = [
 
 export type EstagioLead = (typeof ESTAGIOS_PIPELINE)[number];
 
+/** Rótulos legíveis dos estágios — usados no pipeline e nos resumos. */
+export const ESTAGIO_LABELS: Record<string, string> = {
+  LEAD: "Lead",
+  QUALIFICADO: "Qualificado",
+  PROPOSTA_ENVIADA: "Proposta",
+  NEGOCIACAO: "Negociação",
+  FECHADO: "Fechado",
+  PERDIDO: "Perdido",
+};
+
+export function labelEstagio(estagio: string): string {
+  return ESTAGIO_LABELS[estagio] ?? estagio;
+}
+
 export const ESTAGIOS_ATIVOS: string[] = [
   "LEAD",
   "QUALIFICADO",

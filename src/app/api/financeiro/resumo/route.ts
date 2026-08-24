@@ -1,14 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import {
-  calcMRR,
-  calcReceitaPontual,
-  calcAReceber,
-  calcRunway,
-  calcVariacao,
-  mesParaDate,
-  ultimosMeses,
-} from "@/lib/financeiro";
+import { calcResumoFinanceiro, mesParaDate, ultimosMeses } from "@/lib/financeiro";
 
 export async function GET(req: NextRequest) {
   const mes = req.nextUrl.searchParams.get("mes") ?? new Date().toISOString().slice(0, 7);
@@ -37,21 +29,12 @@ export async function GET(req: NextRequest) {
     }),
   ]);
 
-  const mrrAtual    = calcMRR(receitasMes);
-  const mrrAnterior = calcMRR(receitasPrev);
-  const saldo       = config?.saldoCaixa ?? 0;
-
-  const despesasPorMes = despesasMeses.map((d) => ({
-    totalCentavos: d._sum.valorCentavos ?? 0,
-  }));
-
-  return NextResponse.json({
-    mes,
-    mrrAtual,
-    mrrVariacao:     calcVariacao(mrrAtual, mrrAnterior),
-    receitaPontual:  calcReceitaPontual(receitasMes),
-    aReceber:        calcAReceber(receitasMes),
-    runway:          calcRunway(saldo, despesasPorMes),
-    saldoCaixa:      saldo,
+  const resumo = calcResumoFinanceiro({
+    receitasMes,
+    receitasMesAnterior: receitasPrev,
+    saldoCentavos: config?.saldoCaixa ?? 0,
+    despesasPorMes: despesasMeses.map((d) => ({ totalCentavos: d._sum.valorCentavos ?? 0 })),
   });
+
+  return NextResponse.json({ mes, ...resumo });
 }

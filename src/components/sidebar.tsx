@@ -4,12 +4,20 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Sun, Briefcase, Cpu,
-  Users, TrendingUp, CheckSquare, DollarSign, Activity, Flag,
+  Users, TrendingUp, CheckSquare, DollarSign, Activity, Flag, Gauge,
   LayoutDashboard, Images, Sparkles, Plug,
   Clock, CalendarDays, Wand2, Bot, Zap, Camera, Layers, MessageCircle,
 } from "lucide-react";
 
-type SubItem = { href: string; label: string; icon: React.ElementType };
+type SubItem = {
+  href: string;
+  label: string;
+  icon: React.ElementType;
+  /** Rótulo da seção. Repetido em itens seguidos, só o primeiro renderiza o título. */
+  grupo?: string;
+  /** Para o item que aponta para a raiz da seção e não deve casar com as subrotas. */
+  exact?: boolean;
+};
 type NavItem = {
   href: string;
   label: string;
@@ -31,12 +39,13 @@ const NAV: NavItem[] = [
     label: "Negócio",
     icon: Briefcase,
     sub: [
-      { href: "/negocio/clientes",   label: "Clientes",   icon: Users },
-      { href: "/negocio/pipeline",   label: "Pipeline",   icon: TrendingUp },
-      { href: "/negocio/saude",          label: "Saúde",         icon: Activity },
-      { href: "/negocio/compromissos",   label: "Compromissos",  icon: Flag },
-      { href: "/negocio/tarefas",        label: "Tarefas",       icon: CheckSquare },
-      { href: "/negocio/financeiro", label: "Financeiro", icon: DollarSign },
+      { href: "/negocio",              label: "Visão geral",  icon: Gauge,       exact: true },
+      { href: "/negocio/clientes",     label: "Clientes",     icon: Users,       grupo: "Relacionamento" },
+      { href: "/negocio/pipeline",     label: "Pipeline",     icon: TrendingUp,  grupo: "Relacionamento" },
+      { href: "/negocio/saude",        label: "Saúde",        icon: Activity,    grupo: "Relacionamento" },
+      { href: "/negocio/compromissos", label: "Compromissos", icon: Flag,        grupo: "Operação" },
+      { href: "/negocio/tarefas",      label: "Tarefas",      icon: CheckSquare, grupo: "Operação" },
+      { href: "/negocio/financeiro",   label: "Financeiro",   icon: DollarSign,  grupo: "Finanças" },
     ],
   },
   {
@@ -66,8 +75,9 @@ export function Sidebar() {
     return item.exact ? pathname === item.href : pathname.startsWith(item.href);
   }
 
-  function isSubActive(href: string) {
-    return pathname === href || pathname.startsWith(href + "/");
+  function isSubActive(sub: SubItem) {
+    if (sub.exact) return pathname === sub.href;
+    return pathname === sub.href || pathname.startsWith(sub.href + "/");
   }
 
   return (
@@ -196,12 +206,21 @@ export function Sidebar() {
               {/* Sub-items — show when section is active */}
               {hasSub && active && (
                 <div className="flex flex-col gap-0.5 mb-1 pl-3">
-                  {item.sub.map((sub) => {
-                    const subActive = isSubActive(sub.href);
+                  {item.sub.map((sub, i) => {
+                    const subActive = isSubActive(sub);
                     const SubIcon = sub.icon;
+                    const abreGrupo = sub.grupo && sub.grupo !== item.sub[i - 1]?.grupo;
                     return (
+                      <div key={sub.href}>
+                      {abreGrupo && (
+                        <p
+                          className="px-2.5 pt-2.5 pb-1 text-[9px] font-semibold uppercase tracking-[0.13em]"
+                          style={{ color: "#3a4d6b" }}
+                        >
+                          {sub.grupo}
+                        </p>
+                      )}
                       <Link
-                        key={sub.href}
                         href={sub.href}
                         className="group relative flex items-center gap-2 rounded-[12px] px-2.5 py-1.5 transition-all duration-150"
                         style={
@@ -231,6 +250,7 @@ export function Sidebar() {
                             style={{ background: "rgba(79,140,255,0.04)" }} />
                         )}
                       </Link>
+                      </div>
                     );
                   })}
                 </div>
