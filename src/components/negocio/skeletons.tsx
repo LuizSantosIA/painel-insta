@@ -1,18 +1,11 @@
-import { Panel } from "./panel";
-
 /** Bloco cinza discreto — mesma pulsação em toda a tela. */
-function Bar({ w = "100%", h = 12 }: { w?: string; h?: number }) {
-  return (
-    <span
-      className="block animate-pulse rounded bg-surface-2"
-      style={{ width: w, height: h }}
-    />
-  );
+function Bar({ w = "100%", h = 11 }: { w?: string; h?: number }) {
+  return <span className="block animate-pulse rounded bg-surface-2" style={{ width: w, height: h }} />;
 }
 
 export function MetricStripSkeleton() {
   return (
-    <div className="overflow-hidden rounded-[14px] border border-border-subtle bg-surface/45">
+    <div className="overflow-hidden rounded-[12px] border border-border-subtle bg-surface/40">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         {[0, 1, 2, 3].map((i) => (
           <div
@@ -26,10 +19,14 @@ export function MetricStripSkeleton() {
               i > 0 ? "lg:border-l lg:border-border-subtle" : "",
             ].join(" ")}
           >
-            <div className="flex flex-col gap-2.5 px-4 py-4 lg:px-5">
-              <Bar w="64px" h={8} />
-              <Bar w="108px" h={22} />
-              <Bar w="88px" h={9} />
+            <div className="flex flex-col justify-between gap-2 px-4 py-3.5 lg:px-5">
+              <Bar w="62px" h={8} />
+              <span className="flex h-[27px] items-end">
+                <Bar w="104px" h={20} />
+              </span>
+              <span className="flex h-[15px] items-center">
+                <Bar w="86px" h={9} />
+              </span>
             </div>
           </div>
         ))}
@@ -38,39 +35,40 @@ export function MetricStripSkeleton() {
   );
 }
 
-export function PanelSkeleton({ linhas = 4 }: { linhas?: number }) {
+/** Seção sem caixa, no mesmo ritmo do conteúdo real. */
+export function SectionSkeleton({ linhas = 4 }: { linhas?: number }) {
   return (
-    <Panel>
-      <div className="flex items-center justify-between border-b border-border-subtle px-4 py-3">
-        <Bar w="132px" h={12} />
-        <Bar w="70px" h={10} />
+    <section className="min-w-0">
+      <div className="flex items-baseline justify-between gap-4 border-b border-border-subtle pb-1.5">
+        <Bar w="124px" h={12} />
+        <Bar w="64px" h={10} />
       </div>
-      <div className="divide-y divide-border-subtle">
+      <div className="divide-y divide-border-subtle/70">
         {Array.from({ length: linhas }).map((_, i) => (
-          <div key={i} className="flex items-center gap-3 px-4 py-3">
-            <span className="h-[7px] w-[7px] shrink-0 animate-pulse rounded-full bg-surface-2" />
-            <Bar w={`${52 + ((i * 13) % 34)}%`} h={11} />
+          <div key={i} className="flex items-center gap-2.5 py-[9px]">
+            <span className="h-[6px] w-[6px] shrink-0 animate-pulse rounded-full bg-surface-2" />
+            <Bar w={`${48 + ((i * 13) % 32)}%`} h={10} />
             <span className="ml-auto">
-              <Bar w="58px" h={10} />
+              <Bar w="54px" h={9} />
             </span>
           </div>
         ))}
       </div>
-    </Panel>
+    </section>
   );
 }
 
 /** Esqueleto da tela inteira, no mesmo grid do conteúdo real. */
 export function OverviewSkeleton() {
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <MetricStripSkeleton />
-      <PanelSkeleton linhas={5} />
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <PanelSkeleton linhas={4} />
-        <PanelSkeleton linhas={3} />
-        <PanelSkeleton linhas={4} />
-        <PanelSkeleton linhas={4} />
+      <SectionSkeleton linhas={4} />
+      <div className="grid grid-cols-1 gap-x-10 gap-y-6 xl:grid-cols-2">
+        <SectionSkeleton linhas={4} />
+        <SectionSkeleton linhas={4} />
+        <SectionSkeleton linhas={3} />
+        <SectionSkeleton linhas={3} />
       </div>
     </div>
   );

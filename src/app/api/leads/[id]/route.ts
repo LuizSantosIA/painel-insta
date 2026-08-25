@@ -7,6 +7,8 @@ const ORIGENS = ["INSTAGRAM_DM", "INSTAGRAM_COMENTARIO", "WHATSAPP", "EMAIL", "I
 const LINHAS = ["INNOBI", "MENTORIA", "SERVICOS"] as const;
 const ATIVOS = ["LEAD", "QUALIFICADO", "PROPOSTA_ENVIADA", "NEGOCIACAO"];
 
+const MOTIVOS = ["PRECO", "SEM_RESPOSTA", "TIMING", "CONCORRENTE", "NAO_FIT", "DESISTIU", "OUTRO"] as const;
+
 const PatchSchema = z.object({
   nome: z.string().min(1).optional(),
   contato: z.string().min(1).optional(),
@@ -18,6 +20,9 @@ const PatchSchema = z.object({
   proximaAcaoEm: z.string().nullable().optional(),
   postOrigemId: z.string().nullable().optional(),
   notas: z.string().nullable().optional(),
+  clienteId: z.string().nullable().optional(),
+  motivoPerda: z.enum(MOTIVOS).nullable().optional(),
+  notaPerda: z.string().nullable().optional(),
 });
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -45,11 +50,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   const { proximaAcaoEm, ...rest } = parsed.data;
+
+  // Trocou de estágio: reinicia o contador de tempo parado. Só aqui — editar o
+  // valor ou a nota não pode fazer a negociação parecer recém-movida.
+  const mudouEstagio = parsed.data.estagio !== undefined && parsed.data.estagio !== current.estagio;
+
   const lead = await prisma.lead.update({
     where: { id },
     data: {
       ...rest,
       ...(proximaAcaoEm !== undefined ? { proximaAcaoEm: proximaAcaoEm ? new Date(proximaAcaoEm) : null } : {}),
+      ...(mudouEstagio ? { estagioDesde: new Date() } : {}),
     },
   });
 

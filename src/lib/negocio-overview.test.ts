@@ -13,6 +13,7 @@ import {
   type ReceitaOverview,
   type TarefaOverview,
 } from "./negocio-overview";
+import { calcularSaudeCliente } from "./saude";
 
 /** Data a N dias de hoje, ao meio-dia UTC para não escorregar de dia por fuso. */
 function dia(offset: number): Date {
@@ -41,6 +42,28 @@ function lead(over: Partial<LeadOverview> = {}): LeadOverview {
   };
 }
 
+/**
+ * Um cliente com diagnóstico de verdade: a faixa sai da engine, a partir de quantos
+ * dias faz que houve contato. Assim o teste do painel não inventa uma saúde que a
+ * engine não produziria.
+ */
+function clienteSaude(id: string, name: string, diasSemContato: number): ClienteSaudeOverview {
+  return {
+    id,
+    name,
+    diagnostico: calcularSaudeCliente({
+      status: "active",
+      criadoEm: dia(-200),
+      ultimoContatoEm: null,
+      interacoes: [{ tipo: "WHATSAPP", ocorreuEm: dia(-diasSemContato) }],
+      receitas: [],
+      tarefas: [],
+      compromissos: [],
+      oportunidades: [],
+    }),
+  };
+}
+
 function vazio(): DadosAlertas {
   return { leads: [], compromissos: [], tarefas: [], receitas: [], clientes: [] };
 }
@@ -52,7 +75,7 @@ describe("montarAlertas", () => {
       leads: [lead()],
       compromissos: [{ id: "c1", descricao: "Reunião", para: "X", prazoEm: dia(2), cumprido: false }],
       tarefas: [{ id: "t1", title: "Proposta", dueDate: dia(1), done: false, clienteNome: null }],
-      clientes: [{ id: "cl1", name: "Ok", saude: "VERDE" }],
+      clientes: [clienteSaude("cl1", "Ok", 1)],
     });
     expect(alertas).toEqual([]);
   });
@@ -95,6 +118,7 @@ describe("montarAlertas", () => {
           id: "r1",
           descricao: "Mensalidade",
           valorCentavos: 100000,
+          tipo: "PONTUAL",
           status: "INADIMPLENTE",
           competencia: competencia(0),
           clienteNome: "Cliente XYZ",
@@ -114,6 +138,7 @@ describe("montarAlertas", () => {
           id: "r1",
           descricao: "Deste mês",
           valorCentavos: 100000,
+          tipo: "PONTUAL",
           status: "CONFIRMADA",
           competencia: competencia(0),
           clienteNome: null,
@@ -131,6 +156,7 @@ describe("montarAlertas", () => {
           id: "r1",
           descricao: "Atrasada",
           valorCentavos: 100000,
+          tipo: "PONTUAL",
           status: "CONFIRMADA",
           competencia: competencia(2),
           clienteNome: null,
@@ -175,14 +201,42 @@ describe("montarAlertas", () => {
     const alertas = montarAlertas({
       ...vazio(),
       clientes: [
-        { id: "1", name: "Risco", saude: "VERMELHO" },
-        { id: "2", name: "Atenção", saude: "AMARELO" },
-        { id: "3", name: "Saudável", saude: "VERDE" },
+        clienteSaude("1", "Risco", 50),
+        clienteSaude("2", "Atenção", 9),
+        clienteSaude("3", "Saudável", 1),
       ],
     });
     expect(alertas).toHaveLength(2);
     expect(alertas[0].severidade).toBe("URGENTE");
     expect(alertas[1].severidade).toBe("ATENCAO");
+  });
+
+  it("não repete como saúde o que já virou alerta próprio", () => {
+    // A tarefa vencida deste cliente derruba a saúde dele, mas já tem alerta em
+    // Tarefas: contar de novo em Saúde seria dizer a mesma coisa duas vezes.
+    const cliente = clienteSaude("cl9", "Com tarefa", 1);
+    cliente.diagnostico = calcularSaudeCliente({
+      status: "active",
+      criadoEm: dia(-200),
+      ultimoContatoEm: null,
+      interacoes: [{ tipo: "WHATSAPP", ocorreuEm: dia(-1) }],
+      receitas: [],
+      tarefas: [
+        { done: false, dueDate: dia(-9) },
+        { done: false, dueDate: dia(-9) },
+        { done: false, dueDate: dia(-9) },
+      ],
+      compromissos: [],
+      oportunidades: [],
+    });
+    expect(cliente.diagnostico.status).toBe("AMARELO");
+
+    const alertas = montarAlertas({
+      ...vazio(),
+      tarefas: [{ id: "t9", title: "Entregar", dueDate: dia(-9), done: false, clienteNome: "Com tarefa" }],
+      clientes: [cliente],
+    });
+    expect(alertas.map((a) => a.destinoLabel)).toEqual(["Tarefas"]);
   });
 
   it("coloca todos os urgentes antes de qualquer atenção", () => {
@@ -237,16 +291,30 @@ describe("resumirPipeline", () => {
 describe("resumirSaude", () => {
   it("conta cada faixa e o total", () => {
     const clientes: ClienteSaudeOverview[] = [
-      { id: "1", name: "a", saude: "VERMELHO" },
-      { id: "2", name: "b", saude: "AMARELO" },
-      { id: "3", name: "c", saude: "VERDE" },
-      { id: "4", name: "d", saude: "VERDE" },
+      clienteSaude("1", "a", 50),
+      clienteSaude("2", "b", 9),
+      clienteSaude("3", "c", 1),
+      clienteSaude("4", "d", 1),
     ];
-    expect(resumirSaude(clientes)).toEqual({ vermelho: 1, amarelo: 1, verde: 2, total: 4 });
+    expect(resumirSaude(clientes)).toEqual({
+      vermelho: 1,
+      amarelo: 1,
+      verde: 2,
+      semDados: 0,
+      total: 4,
+      mrrEmRiscoCentavos: 0,
+    });
   });
 
   it("devolve tudo zerado sem clientes", () => {
-    expect(resumirSaude([])).toEqual({ vermelho: 0, amarelo: 0, verde: 0, total: 0 });
+    expect(resumirSaude([])).toEqual({
+      vermelho: 0,
+      amarelo: 0,
+      verde: 0,
+      semDados: 0,
+      total: 0,
+      mrrEmRiscoCentavos: 0,
+    });
   });
 });
 
@@ -293,9 +361,9 @@ describe("montarProximos", () => {
 
 describe("calcAReceberVencido", () => {
   const receitas: ReceitaOverview[] = [
-    { id: "1", descricao: "passada", valorCentavos: 300000, status: "CONFIRMADA", competencia: competencia(1), clienteNome: null },
-    { id: "2", descricao: "deste mês", valorCentavos: 500000, status: "CONFIRMADA", competencia: competencia(0), clienteNome: null },
-    { id: "3", descricao: "paga", valorCentavos: 900000, status: "RECEBIDA", competencia: competencia(2), clienteNome: null },
+    { id: "1", descricao: "passada", valorCentavos: 300000, tipo: "PONTUAL", status: "CONFIRMADA", competencia: competencia(1), clienteNome: null },
+    { id: "2", descricao: "deste mês", valorCentavos: 500000, tipo: "PONTUAL", status: "CONFIRMADA", competencia: competencia(0), clienteNome: null },
+    { id: "3", descricao: "paga", valorCentavos: 900000, tipo: "PONTUAL", status: "RECEBIDA", competencia: competencia(2), clienteNome: null },
   ];
 
   it("soma só o que passou da competência e não foi recebido", () => {

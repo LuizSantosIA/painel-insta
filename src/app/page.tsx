@@ -6,7 +6,7 @@ import { Loader2, CheckCircle, Flag, TrendingUp, Clock, DollarSign, ChevronRight
 import { fmtBRL } from "@/lib/financeiro";
 import { diasParaVencer } from "@/lib/compromisso";
 import { ESTAGIOS_ATIVOS } from "@/lib/pipeline";
-import type { ClienteSaudeItem } from "@/app/api/clientes/saude/route";
+import type { CarteiraSaude, ClienteSaudeItem } from "@/app/api/clientes/saude/route";
 
 interface Compromisso {
   id: string; descricao: string; para: string;
@@ -66,13 +66,13 @@ export default function HojePage() {
     Promise.all([
       fetch("/api/compromissos").then(r => r.ok ? r.json() : []),
       fetch("/api/leads").then(r => r.ok ? r.json() : []),
-      fetch("/api/clientes/saude").then(r => r.ok ? r.json() : []),
+      fetch("/api/clientes/saude").then(r => r.ok ? r.json() : null),
       fetch("/api/financeiro/resumo").then(r => r.ok ? r.json() : null),
       fetch("/api/tasks").then(r => r.ok ? r.json() : []),
     ]).then(([c, l, s, r, t]) => {
       setCompromissos(c);
       setLeads(l);
-      setSaude(s);
+      setSaude((s as CarteiraSaude | null)?.clientes ?? []);
       setResumo(r);
       setTasks(t);
       setLoading(false);
@@ -158,8 +158,8 @@ export default function HojePage() {
   for (const l of leads) pipelineCount[l.estagio] = (pipelineCount[l.estagio] ?? 0) + 1;
 
   // ── Saúde ────────────────────────────────────────────────────────────────
-  const vermelhos = saude.filter(c => c.saude === "VERMELHO");
-  const amarelos = saude.filter(c => c.saude === "AMARELO");
+  const vermelhos = saude.filter(c => c.diagnostico.status === "VERMELHO");
+  const amarelos = saude.filter(c => c.diagnostico.status === "AMARELO");
 
   const tudoOk = urgentes.length === 0 && paraHoje.length === 0 && vermelhos.length === 0 && tarefasPendentes.length === 0;
 
@@ -309,13 +309,9 @@ export default function HojePage() {
                 {vermelhos.slice(0, 4).map(c => (
                   <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span style={{ fontSize: 12, color: "#e8f0ff" }}>{c.name}</span>
-                    {c.temInadimplente && (
-                      <span style={{ fontSize: 10, color: "#f87171", background: "rgba(239,68,68,0.1)", borderRadius: 6, padding: "1px 6px" }}>
-                        inadimplente
-                      </span>
-                    )}
-                    {c.mrrAtual > 0 && (
-                      <span style={{ fontSize: 10, color: "#4a617f" }}>{fmtBRL(c.mrrAtual)}/mês</span>
+                    <span style={{ fontSize: 10, color: "#f87171" }}>{c.diagnostico.resumo}</span>
+                    {c.diagnostico.mrrCentavos > 0 && (
+                      <span style={{ fontSize: 10, color: "#4a617f" }}>{fmtBRL(c.diagnostico.mrrCentavos)}/mês</span>
                     )}
                   </div>
                 ))}

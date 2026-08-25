@@ -5,11 +5,15 @@
 // saúde vem de saude.ts, prazos de compromisso.ts, dinheiro de financeiro.ts.
 
 import { diasParaVencer } from "@/lib/compromisso";
-import { ESTAGIOS_ATIVOS, labelEstagio } from "@/lib/pipeline";
-import type { SaudeScore } from "@/lib/saude";
+import { diasEmAtraso, fmtBRL, isVencida, type ReceitaLike } from "@/lib/financeiro";
+import { DIAS_PARADO_ATENCAO, ESTAGIOS_ATIVOS, labelEstagio } from "@/lib/pipeline";
+import type { DiagnosticoSaude, StatusSaude } from "@/lib/saude";
 
-/** Um lead parado há mais dias que isso vira alerta. */
-export const DIAS_LEAD_PARADO = 7;
+/**
+ * Um lead parado há mais dias que isso vira alerta.
+ * É o mesmo limiar que colore o card no pipeline — a régua mora em pipeline.ts.
+ */
+export const DIAS_LEAD_PARADO = DIAS_PARADO_ATENCAO;
 
 export type Severidade = "URGENTE" | "ATENCAO" | "INFO";
 
@@ -23,6 +27,8 @@ export interface LeadOverview {
   proximaAcao: string | null;
   proximaAcaoEm: string | Date | null;
   atualizadoEm: string | Date;
+  /** Desde quando está no estágio atual. Null nas oportunidades anteriores ao campo. */
+  estagioDesde?: string | Date | null;
 }
 
 export interface CompromissoOverview {
@@ -41,19 +47,22 @@ export interface TarefaOverview {
   clienteNome: string | null;
 }
 
-export interface ReceitaOverview {
+export interface ReceitaOverview extends ReceitaLike {
   id: string;
   descricao: string;
   valorCentavos: number;
   status: string;
   competencia: string | Date;
+  vencimento?: string | Date | null;
+  clienteId?: string | null;
   clienteNome: string | null;
 }
 
 export interface ClienteSaudeOverview {
   id: string;
   name: string;
-  saude: SaudeScore;
+  /** Vem inteiro da engine — o painel não recalcula nada por conta própria. */
+  diagnostico: DiagnosticoSaude;
 }
 
 // ─── Alertas ─────────────────────────────────────────────────────────────────
@@ -88,11 +97,6 @@ function diasDesde(data: string | Date, agora: Date): number {
   return Math.floor((agora.getTime() - new Date(data).getTime()) / 86_400_000);
 }
 
-/** Início do mês corrente em UTC — a fronteira que define receita vencida. */
-function inicioDoMes(agora: Date): Date {
-  return new Date(Date.UTC(agora.getUTCFullYear(), agora.getUTCMonth(), 1));
-}
-
 export interface DadosAlertas {
   leads: LeadOverview[];
   compromissos: CompromissoOverview[];
@@ -124,24 +128,20 @@ export function montarAlertas(dados: DadosAlertas, agora = new Date()): AlertaNe
     });
   }
 
-  // Receitas não recebidas com competência anterior ao mês atual.
-  const limiteMes = inicioDoMes(agora);
+  // Receitas vencidas. Quem decide o que é "vencida" é financeiro.ts — aqui só
+  // traduzimos o sinal em alerta, com o mesmo texto que aparece na Saúde.
   for (const r of dados.receitas) {
-    const vencida = new Date(r.competencia) < limiteMes && r.status !== "RECEBIDA";
-    const inadimplente = r.status === "INADIMPLENTE";
-    if (!vencida && !inadimplente) continue;
+    if (!isVencida(r, agora)) continue;
 
-    const dias = diasDesde(r.competencia, agora);
+    const dias = diasEmAtraso(r, agora);
     alertas.push({
       id: `receita-${r.id}`,
       titulo: r.clienteNome ?? r.descricao,
-      detalhe: inadimplente
-        ? `pagamento inadimplente · ${r.descricao}`
-        : `receita não recebida ${haDias(Math.max(dias, 1))}`,
+      detalhe: `${fmtBRL(r.valorCentavos)} vencidos ${haDias(dias)} · ${r.descricao}`,
       severidade: "URGENTE",
       destino: "/negocio/financeiro",
       destinoLabel: "Financeiro",
-      peso: Math.max(dias, 1),
+      peso: dias,
     });
   }
 
@@ -183,7 +183,7 @@ export function montarAlertas(dados: DadosAlertas, agora = new Date()): AlertaNe
       }
     }
 
-    const parado = diasDesde(l.atualizadoEm, agora);
+    const parado = diasDesde(l.estagioDesde ?? l.atualizadoEm, agora);
     if (parado >= DIAS_LEAD_PARADO) {
       alertas.push({
         id: `lead-parado-${l.id}`,
@@ -197,17 +197,27 @@ export function montarAlertas(dados: DadosAlertas, agora = new Date()): AlertaNe
     }
   }
 
-  // Saúde dos clientes — o cálculo em si mora em saude.ts.
+  // Saúde dos clientes — o diagnóstico inteiro vem da engine (saude.ts).
+  //
+  // Só entram aqui os motivos que ninguém mais conta: tarefa vencida, receita
+  // atrasada, compromisso e oportunidade parada já viraram alerta próprio acima, e
+  // repeti-los como "cliente em risco" seria dizer a mesma coisa duas vezes.
   for (const c of dados.clientes) {
-    if (c.saude === "VERDE") continue;
+    const { status, motivos, score } = c.diagnostico;
+    if (status !== "VERMELHO" && status !== "AMARELO") continue;
+
+    const proprio = motivos.find((m) => !m.temAlertaProprio);
+    if (!proprio) continue;
+
     alertas.push({
       id: `saude-${c.id}`,
       titulo: c.name,
-      detalhe: c.saude === "VERMELHO" ? "cliente em risco" : "cliente precisa de atenção",
-      severidade: c.saude === "VERMELHO" ? "URGENTE" : "ATENCAO",
+      detalhe: proprio.texto.toLowerCase(),
+      severidade: status === "VERMELHO" ? "URGENTE" : "ATENCAO",
       destino: "/negocio/saude",
       destinoLabel: "Saúde",
-      peso: c.saude === "VERMELHO" ? 5 : 1,
+      // Quanto pior o score, mais alto na lista dentro da mesma severidade.
+      peso: 100 - score,
     });
   }
 
@@ -263,15 +273,35 @@ export interface SaudeResumo {
   vermelho: number;
   amarelo: number;
   verde: number;
+  /** Cliente novo ou sem histórico suficiente — nem saudável, nem problema. */
+  semDados: number;
   total: number;
+  /** Receita recorrente presa em clientes em risco ou em atenção. */
+  mrrEmRiscoCentavos: number;
 }
 
+const CHAVE_RESUMO: Record<StatusSaude, keyof Omit<SaudeResumo, "total" | "mrrEmRiscoCentavos">> = {
+  VERMELHO: "vermelho",
+  AMARELO: "amarelo",
+  VERDE: "verde",
+  SEM_DADOS: "semDados",
+};
+
 export function resumirSaude(clientes: ClienteSaudeOverview[]): SaudeResumo {
-  const resumo: SaudeResumo = { vermelho: 0, amarelo: 0, verde: 0, total: clientes.length };
+  const resumo: SaudeResumo = {
+    vermelho: 0,
+    amarelo: 0,
+    verde: 0,
+    semDados: 0,
+    total: clientes.length,
+    mrrEmRiscoCentavos: 0,
+  };
   for (const c of clientes) {
-    if (c.saude === "VERMELHO") resumo.vermelho += 1;
-    else if (c.saude === "AMARELO") resumo.amarelo += 1;
-    else resumo.verde += 1;
+    const { status, mrrCentavos } = c.diagnostico;
+    resumo[CHAVE_RESUMO[status]] += 1;
+    if (status === "VERMELHO" || status === "AMARELO") {
+      resumo.mrrEmRiscoCentavos += mrrCentavos;
+    }
   }
   return resumo;
 }
@@ -338,12 +368,14 @@ export function montarProximos(
   return itens.sort((a, b) => a.dias - b.dias).slice(0, limite);
 }
 
-// ─── Pipeline: valor a receber vencido ───────────────────────────────────────
+// ─── Valor a receber já vencido ──────────────────────────────────────────────
 
-/** Total já vencido dentro do "a receber" — competência passada e ainda não recebida. */
+/**
+ * Total vencido dentro do "a receber". Delega a régua para financeiro.ts: o
+ * painel, a tela de Financeiro e a Saúde precisam concordar no mesmo número.
+ */
 export function calcAReceberVencido(receitas: ReceitaOverview[], agora = new Date()): number {
-  const limite = inicioDoMes(agora);
   return receitas
-    .filter((r) => r.status !== "RECEBIDA" && new Date(r.competencia) < limite)
+    .filter((r) => isVencida(r, agora))
     .reduce((soma, r) => soma + r.valorCentavos, 0);
 }

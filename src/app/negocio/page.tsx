@@ -92,7 +92,7 @@ export default function NegocioPage() {
     <div className="space-y-5">
       <header className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-[22px] font-semibold tracking-tight">Negócio</h1>
+          <h1 className="text-[20px] font-semibold leading-tight tracking-tight">Negócio</h1>
           <p className="mt-0.5 text-[12px] text-muted">Visão geral da operação</p>
         </div>
         <NewButton />
@@ -108,12 +108,13 @@ export default function NegocioPage() {
       )}
 
       {!carregando && !erro && dados && (
-        <div className="space-y-4">
+        <div className="space-y-6">
           <MetricStrip metricas={montarMetricas(dados)} />
 
           <AttentionList alertas={dados.alertas} />
 
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          {/* gap-x maior que gap-y: sem caixas, a separação lateral vem do espaço */}
+          <div className="grid grid-cols-1 items-start gap-x-10 gap-y-6 xl:grid-cols-2">
             <FinanceSummary resumo={dados.financeiro} aReceberVencido={dados.aReceberVencido} />
             <PipelineSummary resumo={dados.pipeline} />
             <ClientHealthSummary resumo={dados.saude} />

@@ -24,7 +24,6 @@ import {
   Heart,
   Bookmark,
   ExternalLink,
-  Zap,
   Sparkles,
   ArrowUpRight,
 } from "lucide-react";
@@ -77,10 +76,10 @@ export default async function OverviewPage() {
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight" style={{ color: "var(--foreground)" }}>
-            Visão geral
+            Audiência
           </h1>
           <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
-            Desempenho da sua conta nos últimos {snapshots.length} dias
+            Métricas da conta nos últimos {snapshots.length} dias · contexto para a Máquina
           </p>
         </div>
 
@@ -97,14 +96,6 @@ export default async function OverviewPage() {
               <span style={{ color: "var(--foreground-2)" }}>{insight}</span>
             </div>
           )}
-          <Link
-            href="/chat"
-            className="btn-primary"
-            style={{ whiteSpace: "nowrap" }}
-          >
-            <Zap className="h-4 w-4" />
-            Perguntar à IA
-          </Link>
         </div>
       </header>
 
@@ -192,9 +183,6 @@ export default async function OverviewPage() {
                 Média por tipo de conteúdo
               </p>
             </div>
-            <Link href="/recomendacoes" className="flex items-center gap-1 text-[12px] font-medium" style={{ color: "#4F8CFF" }}>
-              Ver recomendações <ArrowUpRight className="h-3.5 w-3.5" />
-            </Link>
           </div>
           <HorizontalBarChart data={byType} suffix="%" />
         </div>
@@ -209,7 +197,7 @@ export default async function OverviewPage() {
                 Maior engajamento do período
               </p>
             </div>
-            <Link href="/posts" className="flex items-center gap-1 text-[12px] font-medium" style={{ color: "#4F8CFF" }}>
+            <Link href="/maquina/conteudo" className="flex items-center gap-1 text-[12px] font-medium" style={{ color: "#4F8CFF" }}>
               Ver todos <ArrowUpRight className="h-3.5 w-3.5" />
             </Link>
           </div>

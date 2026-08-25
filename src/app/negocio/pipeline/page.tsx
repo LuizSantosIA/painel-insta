@@ -3,21 +3,14 @@
 import { useState, useEffect, useCallback } from "react";
 import { Plus, Loader2, X, Trash2, Pencil, AlertTriangle, ChevronRight, CheckCircle, BarChart2 } from "lucide-react";
 import { fmtBRL, parseBRL } from "@/lib/financeiro";
-import { isAtrasado, ESTAGIOS_ATIVOS } from "@/lib/pipeline";
+import { isAtrasado, ESTAGIOS_ATIVOS, calcResumoPipeline, labelMotivoPerda, type ResumoPipeline } from "@/lib/pipeline";
+import type { LeadPipeline, PipelineOverview } from "@/app/api/pipeline/overview/route";
+import { ContextoCard, ModalPerda, ResumoComercial, ZonasFinalizacao } from "@/components/pipeline/blocos";
 
-interface Lead {
-  id: string;
-  nome: string;
-  contato: string;
-  estagio: string;
-  origem: string;
-  linhaInteresse: string;
-  valorEstimadoCentavos: number | null;
-  proximaAcao: string | null;
-  proximaAcaoEm: string | null;
-  notas: string | null;
-  criadoEm: string;
-}
+// O formato vem da rota que já monta o contexto comercial de cada oportunidade.
+type Lead = LeadPipeline;
+
+const RESULTADOS = ["FECHADO", "PERDIDO"];
 
 const ESTAGIOS = [
   { key: "LEAD",             label: "Lead",       color: "#4F8CFF", bg: "rgba(79,140,255,0.06)",  border: "rgba(79,140,255,0.18)"  },
@@ -44,26 +37,33 @@ const LINHAS = [
 ];
 
 type FormState = {
-  nome: string; contato: string; origem: string; linhaInteresse: string;
+  nome: string; contato: string; origem: string; linhaInteresse: string; clienteId: string;
   estagio: string; valorStr: string; proximaAcao: string; proximaAcaoEm: string; notas: string;
 };
 type FormErrors = Partial<Record<keyof FormState, string>>;
 
 const EMPTY_FORM: FormState = {
-  nome: "", contato: "", origem: "INSTAGRAM_DM", linhaInteresse: "INNOBI",
+  nome: "", contato: "", origem: "INSTAGRAM_DM", linhaInteresse: "INNOBI", clienteId: "",
   estagio: "LEAD", valorStr: "", proximaAcao: "", proximaAcaoEm: "", notas: "",
 };
 
+/**
+ * O que o fechamento pergunta.
+ *
+ * Setup e mensalidade são campos separados porque um negócio recorrente costuma
+ * ter os dois — implantação à vista mais assinatura — e cada um vira uma receita
+ * com natureza própria: só a mensalidade entra no MRR.
+ */
 type ClosingState = {
   lead: Lead;
-  form: { descricao: string; valorStr: string; linha: string; tipo: string; competencia: string };
+  form: {
+    descricao: string;
+    linha: string;
+    competencia: string;
+    setupStr: string;
+    mensalidadeStr: string;
+  };
 } | null;
-
-function fmtDate(iso: string | null) {
-  if (!iso) return null;
-  const d = new Date(iso);
-  return d.toLocaleDateString("pt-BR", { timeZone: "UTC", day: "2-digit", month: "2-digit" });
-}
 
 export default function PipelinePage() {
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -74,11 +74,18 @@ export default function PipelinePage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [clientes, setClientes] = useState<{ id: string; name: string }[]>([]);
   const [errors, setErrors] = useState<FormErrors>({});
   const [saving, setSaving] = useState(false);
 
   // DnD
   const [dragOver, setDragOver] = useState<string | null>(null);
+  const [arrastando, setArrastando] = useState(false);
+  const [zonaAtiva, setZonaAtiva] = useState<string | null>(null);
+  const [resumo, setResumo] = useState<ResumoPipeline>(calcResumoPipeline([]));
+  const [finalizadosAbertos, setFinalizadosAbertos] = useState(false);
+  const [perdendo, setPerdendo] = useState<Lead | null>(null);
+  const [perdendoSalvando, setPerdendoSalvando] = useState(false);
 
   // Fechamento
   const [closingState, setClosingState] = useState<ClosingState>(null);
@@ -95,12 +102,30 @@ export default function PipelinePage() {
 
   const fetchLeads = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/leads");
-    if (res.ok) setLeads(await res.json());
+    const res = await fetch("/api/pipeline/overview");
+    if (res.ok) {
+      const data: PipelineOverview = await res.json();
+      setLeads(data.leads);
+      setResumo(data.resumo);
+    }
     setLoading(false);
   }, []);
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
+
+  useEffect(() => {
+    fetch("/api/clients")
+      .then(r => r.ok ? r.json() : [])
+      .then((lista: { id: string; name: string }[]) => {
+        setClientes(lista);
+        // Veio do perfil 360° por "+ Nova ação -> Nova oportunidade".
+        const alvo = new URLSearchParams(window.location.search).get("cliente");
+        if (alvo && lista.some(c => c.id === alvo)) {
+          setForm(f => ({ ...f, clienteId: alvo }));
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const currentMes = new Date().toISOString().slice(0, 7);
 
@@ -113,6 +138,16 @@ export default function PipelinePage() {
     }
     setAtribuicaoOpen(v => !v);
   }
+
+
+  // Aberto pelo "+ Novo" do painel: /negocio/... ?novo=1 já cai no formulário.
+  // Tem de ser efeito: ler a URL durante o render divergiria do HTML do servidor
+  // e quebraria a hidratação.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("novo") !== "1") return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- abertura única no mount, vinda da URL
+    setDrawerOpen(true);
+  }, []);
 
   function openAdd(initialStage = "LEAD") {
     setEditingLead(null);
@@ -128,6 +163,7 @@ export default function PipelinePage() {
       contato: lead.contato,
       origem: lead.origem,
       linhaInteresse: lead.linhaInteresse,
+      clienteId: lead.clienteId ?? "",
       estagio: lead.estagio,
       valorStr: lead.valorEstimadoCentavos != null
         ? (lead.valorEstimadoCentavos / 100).toFixed(2).replace(".", ",")
@@ -168,6 +204,7 @@ export default function PipelinePage() {
       proximaAcao: form.proximaAcao.trim() || null,
       proximaAcaoEm: form.proximaAcaoEm ? new Date(form.proximaAcaoEm).toISOString() : null,
       notas: form.notas.trim() || null,
+      clienteId: form.clienteId || null,
     };
 
     const url = editingLead ? `/api/leads/${editingLead.id}` : "/api/leads";
@@ -208,17 +245,25 @@ export default function PipelinePage() {
     const lead = leads.find(l => l.id === leadId);
     if (!lead || lead.estagio === targetStage) return;
 
+    if (targetStage === "PERDIDO") {
+      setPerdendo(lead);
+      return;
+    }
+
     if (targetStage === "FECHADO") {
+      const estimado = lead.valorEstimadoCentavos != null
+        ? (lead.valorEstimadoCentavos / 100).toFixed(2).replace(".", ",")
+        : "";
       setClosingState({
         lead,
         form: {
           descricao: lead.nome,
-          valorStr: lead.valorEstimadoCentavos != null
-            ? (lead.valorEstimadoCentavos / 100).toFixed(2).replace(".", ",")
-            : "",
           linha: lead.linhaInteresse,
-          tipo: "RECORRENTE",
           competencia: currentMes,
+          setupStr: "",
+          // O valor estimado vira a mensalidade proposta; quem fechou à vista
+          // move o número para o setup em um campo.
+          mensalidadeStr: estimado,
         },
       });
       return;
@@ -227,53 +272,73 @@ export default function PipelinePage() {
     moveLead(leadId, targetStage);
   }
 
-  async function handleFechadoComReceita() {
-    if (!closingState) return;
-    setClosingSaving(true);
+  async function handlePerder(motivo: string | null, nota: string) {
+    if (!perdendo) return;
+    setPerdendoSalvando(true);
 
-    const centavos = parseBRL(closingState.form.valorStr);
-    if (centavos > 0) {
-      await fetch("/api/receitas", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          descricao: closingState.form.descricao || closingState.lead.nome,
-          valorCentavos: centavos,
-          linha: closingState.form.linha,
-          tipo: closingState.form.tipo,
-          status: "CONFIRMADA",
-          competencia: closingState.form.competencia,
-        }),
-      });
-    }
+    const id = perdendo.id;
+    setLeads(prev => prev.map(l => (l.id === id ? { ...l, estagio: "PERDIDO" } : l)));
 
-    await fetch(`/api/leads/${closingState.lead.id}`, {
+    const res = await fetch(`/api/leads/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ estagio: "FECHADO" }),
+      body: JSON.stringify({ estagio: "PERDIDO", motivoPerda: motivo, notaPerda: nota || null }),
     });
 
-    setClosingSaving(false);
-    setClosingState(null);
+    setPerdendoSalvando(false);
+    setPerdendo(null);
+    // Recarrega sempre: o servidor devolve estagioDesde e o resumo recalculado.
     fetchLeads();
+    if (!res.ok) console.error("[pipeline] falha ao marcar como perdido");
   }
 
-  async function handleFechadoSemReceita() {
+  /**
+   * Fecha o negócio numa chamada só.
+   *
+   * Toda a escrita mora no servidor (/api/leads/[id]/fechar): oportunidade e
+   * receitas mudam na mesma transação, e o vínculo leadId impede que fechar duas
+   * vezes gere duas receitas. O Pipeline não monta mais receita por conta própria.
+   */
+  async function fecharNegocio(comReceita: boolean) {
     if (!closingState) return;
     setClosingSaving(true);
-    await fetch(`/api/leads/${closingState.lead.id}`, {
-      method: "PATCH",
+
+    const { form, lead } = closingState;
+    const setup = parseBRL(form.setupStr);
+    const mensalidade = parseBRL(form.mensalidadeStr);
+    const base = { linha: form.linha, competencia: form.competencia };
+    const nome = form.descricao.trim() || lead.nome;
+
+    const corpo = comReceita
+      ? {
+          pontual:
+            setup > 0 ? { ...base, descricao: `${nome} — setup`, valorCentavos: setup } : null,
+          recorrente:
+            mensalidade > 0 ? { ...base, descricao: nome, valorCentavos: mensalidade } : null,
+        }
+      : {};
+
+    const res = await fetch(`/api/leads/${lead.id}/fechar`, {
+      method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ estagio: "FECHADO" }),
+      body: JSON.stringify(corpo),
     });
+
     setClosingSaving(false);
-    setClosingState(null);
-    fetchLeads();
+    if (res.ok) {
+      setClosingState(null);
+      fetchLeads();
+    }
   }
 
   const visibleLeads = filtroLinha
     ? leads.filter(l => l.linhaInteresse === filtroLinha)
     : leads;
+
+  const finalizados = {
+    fechados: visibleLeads.filter(l => l.estagio === "FECHADO"),
+    perdidos: visibleLeads.filter(l => l.estagio === "PERDIDO"),
+  };
 
   const totalAtivos = leads.filter(l => ESTAGIOS_ATIVOS.includes(l.estagio)).length;
   const totalAtrasados = leads.filter(
@@ -395,6 +460,20 @@ export default function PipelinePage() {
         )}
       </div>
 
+      {/* ── Resumo comercial ── */}
+      {!loading && <ResumoComercial resumo={resumo} />}
+
+      {/* ── Zonas de resultado: só durante o arraste ── */}
+      <ZonasFinalizacao
+        visivel={arrastando}
+        zonaAtiva={zonaAtiva}
+        onZona={setZonaAtiva}
+        onSoltar={(zona, leadId) => {
+          setArrastando(false);
+          handleDrop(leadId, zona);
+        }}
+      />
+
       {/* ── Kanban ── */}
       {loading ? (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", flex: 1 }}>
@@ -402,7 +481,7 @@ export default function PipelinePage() {
         </div>
       ) : (
         <div style={{ display: "flex", gap: 12, overflowX: "auto", flex: 1, paddingBottom: 8 }}>
-          {ESTAGIOS.map(stage => {
+          {ESTAGIOS.filter(e => !RESULTADOS.includes(e.key)).map(stage => {
             const stageLeads = visibleLeads.filter(l => l.estagio === stage.key);
             const isOver = dragOver === stage.key;
 
@@ -433,8 +512,11 @@ export default function PipelinePage() {
                     <span style={{ fontSize: 12, fontWeight: 700, color: stage.color, letterSpacing: "0.04em", textTransform: "uppercase" }}>
                       {stage.label}
                     </span>
-                    <span style={{ fontSize: 11, color: "#4a617f", background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: "1px 7px" }}>
+                    <span style={{ fontSize: 11, color: "#6b81a8", background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: "1px 7px" }}>
                       {stageLeads.length}
+                    </span>
+                    <span style={{ fontSize: 11, color: "#6b81a8", fontVariantNumeric: "tabular-nums" }}>
+                      {fmtBRL(stageLeads.reduce((soma, l) => soma + (l.valorEstimadoCentavos ?? 0), 0))}
                     </span>
                   </div>
                   <button
@@ -453,13 +535,17 @@ export default function PipelinePage() {
                   {stageLeads.map(lead => {
                     const atrasado = ESTAGIOS_ATIVOS.includes(lead.estagio) && isAtrasado(lead.proximaAcaoEm);
                     const linha = LINHAS.find(l => l.key === lead.linhaInteresse);
-                    const dateStr = fmtDate(lead.proximaAcaoEm);
 
                     return (
                       <div
                         key={lead.id}
                         draggable
-                        onDragStart={e => { e.dataTransfer.setData("leadId", lead.id); e.dataTransfer.effectAllowed = "move"; }}
+                        onDragStart={e => {
+                          e.dataTransfer.setData("leadId", lead.id);
+                          e.dataTransfer.effectAllowed = "move";
+                          setArrastando(true);
+                        }}
+                        onDragEnd={() => { setArrastando(false); setZonaAtiva(null); }}
                         style={{
                           background: "var(--surface-2)",
                           border: `1px solid ${atrasado ? "rgba(239,68,68,0.4)" : "rgba(255,255,255,0.05)"}`,
@@ -496,38 +582,24 @@ export default function PipelinePage() {
                           </div>
                         </div>
 
-                        {/* Linha + valor */}
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
-                          <span style={{ fontSize: 10, fontWeight: 700, color: linha?.color, background: `${linha?.color}18`, borderRadius: 8, padding: "2px 7px", letterSpacing: "0.03em" }}>
-                            {linha?.label}
-                          </span>
-                          {lead.valorEstimadoCentavos != null && lead.valorEstimadoCentavos > 0 && (
-                            <span style={{ fontSize: 11, color: "#6b82a8" }}>
-                              {fmtBRL(lead.valorEstimadoCentavos)}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Próxima ação */}
-                        {lead.proximaAcao && (
-                          <div style={{ marginTop: 8, display: "flex", alignItems: "flex-start", gap: 5 }}>
-                            <ChevronRight size={11} style={{ color: atrasado ? "#f87171" : "#4a617f", marginTop: 2, flexShrink: 0 }} />
-                            <div style={{ flex: 1 }}>
-                              <span style={{ fontSize: 11, color: "#c8d4f0", lineHeight: 1.4 }}>{lead.proximaAcao}</span>
-                              {dateStr && (
-                                <span style={{ display: "block", fontSize: 10, color: atrasado ? "#f87171" : "#4a617f", fontWeight: 600, marginTop: 2 }}>
-                                  {atrasado ? "⚠ " : ""}{dateStr}
-                                </span>
-                              )}
-                            </div>
-                          </div>
+                        {/* Quem: o cliente vinculado, quando existe */}
+                        {lead.clienteNome && (
+                          <a
+                            href={`/negocio/clientes/${lead.clienteId}`}
+                            onClick={e => e.stopPropagation()}
+                            style={{ fontSize: 11, color: "#6b81a8", textDecoration: "none", display: "block", marginTop: 3 }}
+                          >
+                            {lead.clienteNome} →
+                          </a>
                         )}
+
+                        <ContextoCard lead={lead} corLinha={linha?.color} />
                       </div>
                     );
                   })}
 
-                  {stageLeads.length === 0 && (
-                    <div style={{ textAlign: "center", padding: "20px 0", color: "#2a3a52", fontSize: 12 }}>
+                  {stageLeads.length === 0 && visibleLeads.length > 0 && (
+                    <div style={{ textAlign: "center", padding: "14px 0", color: "#2a3a52", fontSize: 11 }}>
                       Arraste um card aqui
                     </div>
                   )}
@@ -536,6 +608,60 @@ export default function PipelinePage() {
             );
           })}
         </div>
+      )}
+
+      {/* ── Finalizados: resultado, não trabalho em andamento ── */}
+      {!loading && (finalizados.fechados.length > 0 || finalizados.perdidos.length > 0) && (
+        <div style={{ flexShrink: 0, borderTop: "1px solid var(--border-subtle)", paddingTop: 10 }}>
+          <button
+            onClick={() => setFinalizadosAbertos(v => !v)}
+            style={{
+              background: "none", border: "none", cursor: "pointer", padding: 0,
+              display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "var(--muted)",
+            }}
+          >
+            <span style={{ fontWeight: 600, color: "var(--foreground-2)" }}>Finalizados</span>
+            <span style={{ color: "#22C55E" }}>Fechados {finalizados.fechados.length}</span>
+            <span style={{ color: "#EF4444" }}>Perdidos {finalizados.perdidos.length}</span>
+            <span style={{ color: "var(--muted-2)" }}>{finalizadosAbertos ? "▾" : "▸"}</span>
+          </button>
+
+          {finalizadosAbertos && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10, maxHeight: 150, overflowY: "auto" }}>
+              {[...finalizados.fechados, ...finalizados.perdidos].map(lead => {
+                const ganho = lead.estagio === "FECHADO";
+                const motivo = labelMotivoPerda(lead.motivoPerda);
+                return (
+                  <div
+                    key={lead.id}
+                    onClick={() => openEdit(lead)}
+                    style={{
+                      cursor: "pointer", borderRadius: 10, padding: "7px 11px",
+                      border: "1px solid var(--border-subtle)",
+                      borderLeft: `3px solid ${ganho ? "#22C55E" : "#EF4444"}`,
+                      background: "rgba(255,255,255,0.015)", minWidth: 190,
+                    }}
+                  >
+                    <p style={{ margin: 0, fontSize: 12, color: "var(--foreground-2)" }}>{lead.nome}</p>
+                    <p style={{ margin: "2px 0 0", fontSize: 11, color: "var(--muted-2)" }}>
+                      {lead.valorEstimadoCentavos ? fmtBRL(lead.valorEstimadoCentavos) : "sem valor"}
+                      {motivo && ` · ${motivo}`}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {perdendo && (
+        <ModalPerda
+          nome={perdendo.nome}
+          salvando={perdendoSalvando}
+          onCancelar={() => setPerdendo(null)}
+          onConfirmar={handlePerder}
+        />
       )}
 
       {/* ── Drawer — Novo/Editar Lead ── */}
@@ -633,6 +759,19 @@ export default function PipelinePage() {
                 </div>
               )}
 
+              <Field label="Cliente">
+                <select
+                  className="input"
+                  value={form.clienteId}
+                  onChange={e => setForm(f => ({ ...f, clienteId: e.target.value }))}
+                >
+                  <option value="">Sem vínculo</option>
+                  {clientes.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </Field>
+
               <Field label="Notas">
                 <textarea
                   className="input"
@@ -690,49 +829,64 @@ export default function PipelinePage() {
               </div>
             </div>
 
-            <p style={{ fontSize: 13, color: "#6b82a8", marginBottom: 16 }}>Criar uma receita vinculada ao fechamento?</p>
+            {closingState.lead.receitasGeradas > 0 ? (
+              <p style={{ fontSize: 12, color: "#fbbf24", background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)", borderRadius: 10, padding: "10px 12px", marginBottom: 16, lineHeight: 1.5 }}>
+                Esta oportunidade já gerou {closingState.lead.receitasGeradas === 1 ? "uma receita" : `${closingState.lead.receitasGeradas} receitas`} no Financeiro.
+                Fechar de novo não cria outra.
+              </p>
+            ) : (
+              <p style={{ fontSize: 13, color: "#6b82a8", marginBottom: 16 }}>
+                O que foi contratado? Vira receita no Financeiro, já vinculada a esta oportunidade
+                {closingState.lead.clienteNome ? ` e a ${closingState.lead.clienteNome}` : ""}.
+              </p>
+            )}
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                <Field label="Valor (R$)">
-                  <input
-                    className="input"
-                    placeholder="1.500,00"
-                    value={closingState.form.valorStr}
-                    onChange={e => setClosingState(s => s ? { ...s, form: { ...s.form, valorStr: e.target.value } } : null)}
-                  />
-                </Field>
-                <Field label="Tipo">
-                  <select
-                    className="input"
-                    value={closingState.form.tipo}
-                    onChange={e => setClosingState(s => s ? { ...s, form: { ...s.form, tipo: e.target.value } } : null)}
-                  >
-                    <option value="RECORRENTE">Recorrente</option>
-                    <option value="PONTUAL">Pontual</option>
-                  </select>
-                </Field>
+            {closingState.lead.receitasGeradas === 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <Field label="Entrada / setup (R$)">
+                    <input
+                      className="input"
+                      placeholder="opcional"
+                      inputMode="decimal"
+                      value={closingState.form.setupStr}
+                      onChange={e => setClosingState(s => s ? { ...s, form: { ...s.form, setupStr: e.target.value } } : null)}
+                    />
+                  </Field>
+                  <Field label="Mensalidade (R$)">
+                    <input
+                      className="input"
+                      placeholder="opcional"
+                      inputMode="decimal"
+                      value={closingState.form.mensalidadeStr}
+                      onChange={e => setClosingState(s => s ? { ...s, form: { ...s.form, mensalidadeStr: e.target.value } } : null)}
+                    />
+                  </Field>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <Field label="Linha">
+                    <select
+                      className="input"
+                      value={closingState.form.linha}
+                      onChange={e => setClosingState(s => s ? { ...s, form: { ...s.form, linha: e.target.value } } : null)}
+                    >
+                      {LINHAS.map(l => <option key={l.key} value={l.key}>{l.label}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Competência">
+                    <input
+                      className="input"
+                      type="month"
+                      value={closingState.form.competencia}
+                      onChange={e => setClosingState(s => s ? { ...s, form: { ...s.form, competencia: e.target.value } } : null)}
+                    />
+                  </Field>
+                </div>
+                <p style={{ fontSize: 11, color: "#4a617f", lineHeight: 1.5, margin: 0 }}>
+                  Só a mensalidade entra no MRR. O setup vira uma receita pontual separada.
+                </p>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                <Field label="Linha">
-                  <select
-                    className="input"
-                    value={closingState.form.linha}
-                    onChange={e => setClosingState(s => s ? { ...s, form: { ...s.form, linha: e.target.value } } : null)}
-                  >
-                    {LINHAS.map(l => <option key={l.key} value={l.key}>{l.label}</option>)}
-                  </select>
-                </Field>
-                <Field label="Competência">
-                  <input
-                    className="input"
-                    type="month"
-                    value={closingState.form.competencia}
-                    onChange={e => setClosingState(s => s ? { ...s, form: { ...s.form, competencia: e.target.value } } : null)}
-                  />
-                </Field>
-              </div>
-            </div>
+            )}
 
             <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
               <button
@@ -743,21 +897,23 @@ export default function PipelinePage() {
                 Cancelar
               </button>
               <button
-                onClick={handleFechadoSemReceita}
+                onClick={() => fecharNegocio(false)}
                 disabled={closingSaving}
                 style={{ flex: 1, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#c8d4f0", borderRadius: 10, padding: "9px 0", cursor: "pointer", fontSize: 13 }}
               >
                 Só fechar
               </button>
-              <button
-                className="btn-primary"
-                onClick={handleFechadoComReceita}
-                disabled={closingSaving}
-                style={{ flex: 2, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: 13, background: "rgba(34,197,94,0.15)", border: "1px solid rgba(34,197,94,0.3)", color: "#4ade80" }}
-              >
-                {closingSaving ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <CheckCircle size={14} />}
-                Criar receita e fechar
-              </button>
+              {closingState.lead.receitasGeradas === 0 && (
+                <button
+                  className="btn-primary"
+                  onClick={() => fecharNegocio(true)}
+                  disabled={closingSaving}
+                  style={{ flex: 2, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: 13, background: "rgba(34,197,94,0.15)", border: "1px solid rgba(34,197,94,0.3)", color: "#4ade80" }}
+                >
+                  {closingSaving ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <CheckCircle size={14} />}
+                  Criar receita e fechar
+                </button>
+              )}
             </div>
           </div>
         </div>

@@ -6,6 +6,7 @@ const ESTAGIOS = ["LEAD", "QUALIFICADO", "PROPOSTA_ENVIADA", "NEGOCIACAO", "FECH
 const ORIGENS = ["INSTAGRAM_DM", "INSTAGRAM_COMENTARIO", "WHATSAPP", "EMAIL", "INDICACAO", "OUTRO"] as const;
 const LINHAS = ["INNOBI", "MENTORIA", "SERVICOS"] as const;
 const ATIVOS = ["LEAD", "QUALIFICADO", "PROPOSTA_ENVIADA", "NEGOCIACAO"];
+const MOTIVOS = ["PRECO", "SEM_RESPOSTA", "TIMING", "CONCORRENTE", "NAO_FIT", "DESISTIU", "OUTRO"] as const;
 
 const CreateSchema = z
   .object({
@@ -19,6 +20,9 @@ const CreateSchema = z
     proximaAcaoEm: z.string().nullable().optional(),
     postOrigemId: z.string().nullable().optional(),
     notas: z.string().nullable().optional(),
+    clienteId: z.string().nullable().optional(),
+    motivoPerda: z.enum(MOTIVOS).nullable().optional(),
+    notaPerda: z.string().nullable().optional(),
   })
   .superRefine((d, ctx) => {
     if (ATIVOS.includes(d.estagio)) {
@@ -59,6 +63,8 @@ export async function POST(req: NextRequest) {
     data: {
       ...rest,
       proximaAcaoEm: proximaAcaoEm ? new Date(proximaAcaoEm) : null,
+      // O relógio do "tempo parado" começa agora.
+      estagioDesde: new Date(),
     },
   });
 

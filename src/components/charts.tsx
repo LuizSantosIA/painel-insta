@@ -14,7 +14,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { fmtBRL } from "@/lib/financeiro";
+import { fmtBRL, fmtBRLCompacto } from "@/lib/financeiro";
 
 function useMounted() {
   const [mounted, setMounted] = useState(false);
@@ -259,68 +259,149 @@ export function HorizontalBarChart({
   );
 }
 
-export type MrrHistoricoItem = {
-  mes: string;
+const RECEITA_CORES = { INNOBI: "#4F8CFF", MENTORIA: "#7C5CFF", SERVICOS: "#00D4FF" };
+const RECEITA_LABELS = { INNOBI: "Innobi", MENTORIA: "Mentoria", SERVICOS: "Serviços" };
+
+const NATUREZA_CORES = { recorrente: "#4F8CFF", pontual: "#7C5CFF" };
+const NATUREZA_LABELS = { recorrente: "Recorrente", pontual: "Pontual" };
+
+export type PontoReceita = {
+  label: string;
   INNOBI: number;
   MENTORIA: number;
   SERVICOS: number;
+  recorrente: number;
+  pontual: number;
+  total: number;
 };
 
-const MRR_COLORS = { INNOBI: "#4F8CFF", MENTORIA: "#7C5CFF", SERVICOS: "#00D4FF" };
-const MRR_LABELS = { INNOBI: "Innobi", MENTORIA: "Mentoria", SERVICOS: "Serviços" };
+export type ComposicaoGrafico = "LINHA" | "NATUREZA";
 
-export function MrrStackedBarChart({ data }: { data: MrrHistoricoItem[] }) {
+/**
+ * Evolução da receita nos últimos meses.
+ *
+ * Compacto de propósito: 168px de altura, sem legenda embutida (a tela já rotula
+ * a composição acima) e sem eixo Y largo. A tela só monta este componente quando
+ * há histórico — um gráfico de colunas zeradas ocupa espaço e não informa nada.
+ */
+export function ReceitaEvolucaoChart({
+  data,
+  composicao = "LINHA",
+}: {
+  data: PontoReceita[];
+  composicao?: ComposicaoGrafico;
+}) {
   const mounted = useMounted();
-  if (!mounted) return <div style={{ height: 220 }} className="rounded-2xl animate-pulse" />;
+  if (!mounted) return <div style={{ height: 168 }} className="animate-pulse rounded-xl" />;
+
+  const series =
+    composicao === "LINHA"
+      ? (["INNOBI", "MENTORIA", "SERVICOS"] as const).map((k) => ({
+          key: k,
+          cor: RECEITA_CORES[k],
+          label: RECEITA_LABELS[k],
+        }))
+      : (["recorrente", "pontual"] as const).map((k) => ({
+          key: k,
+          cor: NATUREZA_CORES[k],
+          label: NATUREZA_LABELS[k],
+        }));
 
   return (
-    <ResponsiveContainer width="100%" height={220}>
-      <BarChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
-        <CartesianGrid stroke={GRID_COLOR} vertical={false} strokeOpacity={0.6} />
-        <XAxis dataKey="mes" tick={AXIS_STYLE} tickLine={false} axisLine={false} />
+    <ResponsiveContainer width="100%" height={168}>
+      <BarChart data={data} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
+        <CartesianGrid stroke={GRID_COLOR} vertical={false} strokeOpacity={0.5} />
+        <XAxis dataKey="label" tick={AXIS_STYLE} tickLine={false} axisLine={false} />
         <YAxis
           tick={AXIS_STYLE}
           tickLine={false}
           axisLine={false}
-          width={64}
-          tickFormatter={(v: number) => v === 0 ? "0" : `R$${(v / 100).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`}
+          width={52}
+          tickFormatter={(v: number) => (v === 0 ? "0" : fmtBRLCompacto(v))}
         />
         <Tooltip
-          cursor={{ fill: "rgba(79,140,255,0.05)", radius: 8 }}
+          cursor={{ fill: "rgba(79,140,255,0.05)", radius: 6 }}
           content={({ active, payload, label }) => {
             if (!active || !payload?.length) return null;
+            const total = payload.reduce((s, p) => s + Number(p.value ?? 0), 0);
             return (
-              <div style={{
-                background: "rgba(15,23,42,0.96)",
-                border: "1px solid rgba(79,140,255,0.2)",
-                borderRadius: 14,
-                padding: "12px 16px",
-                boxShadow: "0 16px 48px rgba(0,0,0,0.4)",
-              }}>
+              <div
+                style={{
+                  background: "rgba(15,23,42,0.96)",
+                  border: "1px solid rgba(79,140,255,0.2)",
+                  borderRadius: 12,
+                  padding: "10px 14px",
+                  boxShadow: "0 16px 48px rgba(0,0,0,0.4)",
+                  minWidth: 150,
+                }}
+              >
                 <p style={{ color: "#6b82a8", fontSize: 11, marginBottom: 8 }}>{label}</p>
-                {payload.map((p) => (
-                  <div key={String(p.dataKey)} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: p.fill, display: "inline-block" }} />
-                    <span style={{ color: "#c8d4f0", fontSize: 12 }}>{MRR_LABELS[p.dataKey as keyof typeof MRR_LABELS]}</span>
-                    <span style={{ color: "#f1f5ff", fontSize: 12, fontWeight: 600, marginLeft: "auto" }}>{fmtBRL(p.value as number)}</span>
-                  </div>
-                ))}
+                {payload
+                  .filter((p) => Number(p.value ?? 0) > 0)
+                  .map((p) => {
+                    const serie = series.find((x) => x.key === p.dataKey);
+                    return (
+                      <div
+                        key={String(p.dataKey)}
+                        style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}
+                      >
+                        <span
+                          style={{
+                            width: 7,
+                            height: 7,
+                            borderRadius: "50%",
+                            background: p.fill,
+                            display: "inline-block",
+                          }}
+                        />
+                        <span style={{ color: "#c8d4f0", fontSize: 12 }}>{serie?.label}</span>
+                        <span
+                          style={{
+                            color: "#f1f5ff",
+                            fontSize: 12,
+                            fontWeight: 600,
+                            marginLeft: "auto",
+                            paddingLeft: 10,
+                          }}
+                        >
+                          {fmtBRL(p.value as number)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    marginTop: 6,
+                    paddingTop: 6,
+                    borderTop: "1px solid rgba(255,255,255,0.06)",
+                  }}
+                >
+                  <span style={{ color: "#6b82a8", fontSize: 11 }}>Total</span>
+                  <span
+                    style={{
+                      color: "#f1f5ff",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      marginLeft: "auto",
+                    }}
+                  >
+                    {fmtBRL(total)}
+                  </span>
+                </div>
               </div>
             );
           }}
         />
-        <Legend
-          formatter={(value) => <span style={{ color: "#6b82a8", fontSize: 11 }}>{MRR_LABELS[value as keyof typeof MRR_LABELS]}</span>}
-          wrapperStyle={{ paddingTop: 8 }}
-        />
-        {(["INNOBI", "MENTORIA", "SERVICOS"] as const).map((key, i, arr) => (
+        {series.map((serie, i, arr) => (
           <Bar
-            key={key}
-            dataKey={key}
-            stackId="mrr"
-            fill={MRR_COLORS[key]}
-            radius={i === arr.length - 1 ? [6, 6, 0, 0] : [0, 0, 0, 0]}
-            maxBarSize={40}
+            key={serie.key}
+            dataKey={serie.key}
+            stackId="receita"
+            fill={serie.cor}
+            radius={i === arr.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+            maxBarSize={34}
           />
         ))}
       </BarChart>

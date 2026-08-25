@@ -49,6 +49,16 @@ export default function TarefasPage() {
     ]).then(([t, c]) => { setTasks(t); setClients(c); }).finally(() => setLoading(false));
   }, []);
 
+
+  // Aberto pelo "+ Novo" do painel: /negocio/... ?novo=1 já cai no formulário.
+  // Tem de ser efeito: ler a URL durante o render divergiria do HTML do servidor
+  // e quebraria a hidratação.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("novo") !== "1") return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- abertura única no mount, vinda da URL
+    setDrawerOpen(true);
+  }, []);
+
   async function toggle(task: Task) {
     const res = await fetch(`/api/tasks/${task.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ done: !task.done }) });
     const updated = await res.json();

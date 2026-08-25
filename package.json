@@ -13,10 +13,16 @@
     "db:migrate-gerador": "tsx prisma/migrate-gerador.ts",
     "db:migrate-dms": "tsx prisma/migrate-dms.ts",
     "db:migrate-followgate": "tsx prisma/migrate-followgate.ts",
+    "db:migrate-cliente360": "tsx prisma/migrate-cliente360.ts",
+    "db:migrate-pipeline-oportunidade": "tsx prisma/migrate-pipeline-oportunidade.ts",
+    "db:migrate-financeiro-operacional": "tsx prisma/migrate-financeiro-operacional.ts",
+    "db:migrate-maquina": "tsx prisma/migrate-maquina.ts",
+    "db:migrate-saude-engine": "tsx prisma/migrate-saude-engine.ts",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@libsql/client": "^0.17.4",

@@ -4,9 +4,12 @@ import { useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight, X, Heart, MessageCircle, Bookmark, Eye, Share2, ExternalLink } from "lucide-react";
 import { MediaBadge, PostThumb } from "@/components/post-media";
 import { mediaTypeColor } from "@/lib/constants";
+import { COR_STATUS_CONTEUDO, LABEL_STATUS_CONTEUDO } from "@/lib/maquina";
 
 export interface CalendarPost {
   id: string;
+  /** Estado no pipeline editorial. Posts vindos do Instagram são PUBLICADO. */
+  status?: string;
   caption: string | null;
   mediaType: string;
   thumbnailUrl: string | null;
@@ -47,7 +50,20 @@ function dateKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
-export function CalendarView({ posts }: { posts: CalendarPost[] }) {
+/** A cor de um card no calendário: o estado editorial manda; o formato é o padrão. */
+function corDoCard(p: CalendarPost): string {
+  const status = p.status ?? "PUBLICADO";
+  return status === "PUBLICADO" ? mediaTypeColor(p.mediaType) : COR_STATUS_CONTEUDO[status];
+}
+
+export function CalendarView({
+  posts,
+  onCriarNoDia,
+}: {
+  posts: CalendarPost[];
+  /** Criação rápida a partir de um dia vazio. Recebe a data em YYYY-MM-DD. */
+  onCriarNoDia?: (data: string) => void;
+}) {
   const [year, setYear] = useState(() => new Date().getFullYear());
   const [month, setMonth] = useState(() => new Date().getMonth());
   const [selected, setSelected] = useState<CalendarPost | null>(null);
@@ -129,7 +145,7 @@ export function CalendarView({ posts }: { posts: CalendarPost[] }) {
             return (
               <div
                 key={day}
-                className={`min-h-[90px] border-b border-r border-border/50 p-1.5 ${
+                className={`group/dia min-h-[90px] border-b border-r border-border/50 p-1.5 ${
                   dayPosts.length === 0 ? "bg-surface-2/10" : ""
                 }`}
               >
@@ -143,10 +159,20 @@ export function CalendarView({ posts }: { posts: CalendarPost[] }) {
                   >
                     {day}
                   </span>
-                  {dayPosts.length > 0 && (
+                  {dayPosts.length > 0 ? (
                     <span className="rounded-full bg-brand/20 px-1.5 py-0.5 text-[10px] font-medium text-brand">
                       {dayPosts.length}
                     </span>
+                  ) : (
+                    onCriarNoDia && (
+                      <button
+                        onClick={() => onCriarNoDia(key)}
+                        className="rounded px-1 text-[13px] leading-none text-muted-2 opacity-0 transition-opacity hover:text-brand group-hover/dia:opacity-100"
+                        title="Planejar conteúdo neste dia"
+                      >
+                        +
+                      </button>
+                    )
                   )}
                 </div>
                 <div className="space-y-1">
@@ -155,7 +181,7 @@ export function CalendarView({ posts }: { posts: CalendarPost[] }) {
                       key={p.id}
                       onClick={() => setSelected(p)}
                       className="flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left hover:bg-surface-2"
-                      style={{ borderLeft: `2px solid ${mediaTypeColor(p.mediaType)}` }}
+                      style={{ borderLeft: `2px solid ${corDoCard(p)}` }}
                     >
                       <PostThumb type={p.mediaType} url={p.thumbnailUrl} size={20} />
                       <span className="truncate text-[10px] text-muted">
@@ -179,6 +205,16 @@ export function CalendarView({ posts }: { posts: CalendarPost[] }) {
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-muted">
+        {["IDEIA", "RASCUNHO", "AGENDADO"].map((s) => (
+          <span key={s} className="flex items-center gap-1.5">
+            <span
+              className="h-3 w-3 rounded-sm"
+              style={{ backgroundColor: COR_STATUS_CONTEUDO[s] }}
+            />
+            {LABEL_STATUS_CONTEUDO[s]}
+          </span>
+        ))}
+        <span className="text-muted-2">|</span>
         {[
           { type: "REELS", label: "Reel" },
           { type: "CAROUSEL_ALBUM", label: "Carrossel" },
@@ -193,7 +229,7 @@ export function CalendarView({ posts }: { posts: CalendarPost[] }) {
             {t.label}
           </span>
         ))}
-        <span className="ml-auto">Dias sem post têm fundo mais escuro</span>
+        <span className="ml-auto">Publicado usa a cor do formato</span>
       </div>
 
       {selected && (
@@ -204,7 +240,19 @@ export function CalendarView({ posts }: { posts: CalendarPost[] }) {
           />
           <div className="fixed right-0 top-0 z-50 flex h-full w-full max-w-sm flex-col bg-surface shadow-2xl">
             <div className="flex items-center justify-between border-b border-border px-5 py-4">
-              <MediaBadge type={selected.mediaType} />
+              <div className="flex items-center gap-2">
+                <MediaBadge type={selected.mediaType} />
+                <span
+                  className="inline-flex items-center gap-1.5 text-[11px] font-medium"
+                  style={{ color: COR_STATUS_CONTEUDO[selected.status ?? "PUBLICADO"] }}
+                >
+                  <span
+                    className="inline-block h-[5px] w-[5px] rounded-full"
+                    style={{ background: COR_STATUS_CONTEUDO[selected.status ?? "PUBLICADO"] }}
+                  />
+                  {LABEL_STATUS_CONTEUDO[selected.status ?? "PUBLICADO"]}
+                </span>
+              </div>
               <button
                 onClick={() => setSelected(null)}
                 className="rounded-lg p-1 text-muted hover:bg-surface-2 hover:text-foreground"
@@ -232,6 +280,13 @@ export function CalendarView({ posts }: { posts: CalendarPost[] }) {
                 </div>
               </div>
 
+              {/* Conteúdo que ainda não foi ao ar não tem métrica — mostrar zeros mentiria. */}
+              {(selected.status ?? "PUBLICADO") !== "PUBLICADO" ? (
+                <p className="rounded-lg border border-border bg-surface-2/50 p-4 text-sm text-muted">
+                  Ainda não publicado. As métricas aparecem depois que o conteúdo for ao ar e a
+                  conta for sincronizada.
+                </p>
+              ) : (
               <div className="grid grid-cols-2 gap-3">
                 {[
                   { icon: Heart, label: "Curtidas", value: fmt(selected.likes), color: "text-rose-400" },
@@ -248,15 +303,18 @@ export function CalendarView({ posts }: { posts: CalendarPost[] }) {
                   </div>
                 ))}
               </div>
+              )}
 
-              <div className="rounded-lg border border-border bg-surface-2/50 p-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted">Taxa de engajamento</span>
-                  <span className="rounded-md bg-brand/15 px-2.5 py-1 text-sm font-semibold text-brand">
-                    {selected.engagementRate.toFixed(1).replace(".", ",")}%
-                  </span>
+              {(selected.status ?? "PUBLICADO") === "PUBLICADO" && (
+                <div className="rounded-lg border border-border bg-surface-2/50 p-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted">Taxa de engajamento</span>
+                    <span className="rounded-md bg-brand/15 px-2.5 py-1 text-sm font-semibold text-brand">
+                      {selected.engagementRate.toFixed(1).replace(".", ",")}%
+                    </span>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {selected.permalink && (
                 <a

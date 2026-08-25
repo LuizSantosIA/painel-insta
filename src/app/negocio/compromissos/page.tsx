@@ -43,6 +43,16 @@ export default function CompromissosPage() {
 
   useEffect(() => { fetch_(); }, [fetch_]);
 
+  // Aberto pelo "+ Novo" do painel: /negocio/... ?novo=1 já cai no formulário.
+  // Tem de ser efeito: ler a URL durante o render divergiria do HTML do servidor
+  // e quebraria a hidratação.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("novo") !== "1") return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- abertura única no mount, vinda da URL
+    setAddOpen(true);
+  }, []);
+
+
   function validate(): boolean {
     const errs: Partial<typeof EMPTY_FORM> = {};
     if (!form.descricao.trim()) errs.descricao = "Obrigatório";

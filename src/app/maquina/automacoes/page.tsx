@@ -1,9 +1,18 @@
 import { getAllPosts } from "@/lib/data";
 import { AutoManager } from "@/components/auto-manager";
+import { AutomacoesResultado } from "@/components/maquina/automacoes-resultado";
+import { Section, SectionHeader } from "@/components/negocio/panel";
 import { Zap } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Automações.
+ *
+ * A tela abre pelo resultado e só depois pela configuração — a pergunta que
+ * importa é "isso está gerando negócio?", não "quantas regras eu tenho". O
+ * gerenciador de regras é exatamente o mesmo de antes, sem nada removido.
+ */
 export default async function AutomacoesPage() {
   const posts = await getAllPosts();
 
@@ -18,30 +27,35 @@ export default async function AutomacoesPage() {
     }));
 
   return (
-    <div className="max-w-2xl space-y-6">
-      <header className="flex items-start gap-3">
-        <div className="brand-gradient flex h-9 w-9 shrink-0 items-center justify-center rounded-xl">
-          <Zap className="h-5 w-5 text-white" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Automações</h1>
-          <p className="text-sm text-muted">
-            Responda comentários automaticamente com base em palavras-chave.
-          </p>
-        </div>
+    <div className="space-y-6">
+      <header>
+        <h1 className="text-[20px] font-semibold leading-tight tracking-tight">Automações</h1>
+        <p className="mt-0.5 text-[12px] text-muted">
+          Palavra-chave vira conversa sozinha — e a conversa precisa virar negócio
+        </p>
       </header>
 
-      {postList.length === 0 ? (
-        <div className="card p-8 text-center">
-          <Zap className="mx-auto mb-3 h-8 w-8 text-muted" />
-          <p className="font-medium">Nenhum post sincronizado</p>
-          <p className="mt-1 text-sm text-muted">
-            Sincronize sua conta na página de Integração para usar as automações.
-          </p>
-        </div>
-      ) : (
-        <AutoManager posts={postList} />
-      )}
+      <AutomacoesResultado />
+
+      <Section>
+        <SectionHeader titulo="Regras" meta={`${postList.length} posts disponíveis`} />
+
+        {postList.length === 0 ? (
+          <div className="flex items-baseline gap-2 py-2.5">
+            <Zap className="h-[13px] w-[13px] shrink-0 translate-y-[2px] text-muted-2" />
+            <span className="text-[12px] font-medium text-foreground-2">
+              Nenhum post sincronizado
+            </span>
+            <span className="text-[12px] text-muted">
+              Sincronize a conta em Integrações para criar regras.
+            </span>
+          </div>
+        ) : (
+          <div className="max-w-2xl pt-4">
+            <AutoManager posts={postList} />
+          </div>
+        )}
+      </Section>
     </div>
   );
 }

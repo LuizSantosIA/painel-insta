@@ -62,3 +62,127 @@ describe("isAtrasado", () => {
     expect(isAtrasado("2020-06-15T00:00:00.000Z")).toBe(true);
   });
 });
+
+// ─── Pipeline operacional ────────────────────────────────────────────────────
+
+import {
+  DIAS_PARADO_ATENCAO,
+  DIAS_PARADO_RISCO,
+  calcResumoPipeline,
+  diasNoEstagio,
+  fmtTempoNoEstagio,
+  labelMotivoPerda,
+  tomTempoParado,
+} from "./pipeline";
+
+function diasAtras(n: number): Date {
+  const h = new Date();
+  return new Date(Date.UTC(h.getUTCFullYear(), h.getUTCMonth(), h.getUTCDate() - n, 12));
+}
+
+describe("diasNoEstagio", () => {
+  it("devolve null sem carimbo — não inventa data para leads antigos", () => {
+    expect(diasNoEstagio(null)).toBeNull();
+    expect(diasNoEstagio(undefined)).toBeNull();
+  });
+
+  it("conta zero no mesmo dia", () => {
+    expect(diasNoEstagio(diasAtras(0))).toBe(0);
+  });
+
+  it("conta os dias corridos", () => {
+    expect(diasNoEstagio(diasAtras(6))).toBe(6);
+  });
+
+  it("nunca devolve negativo para data futura", () => {
+    const amanha = new Date(Date.now() + 86_400_000);
+    expect(diasNoEstagio(amanha)).toBe(0);
+  });
+});
+
+describe("tomTempoParado", () => {
+  it("é neutro sem informação", () => {
+    expect(tomTempoParado(null)).toBe("NEUTRO");
+  });
+
+  it("é neutro antes do limiar de atenção", () => {
+    expect(tomTempoParado(DIAS_PARADO_ATENCAO - 1)).toBe("NEUTRO");
+  });
+
+  it("vira atenção no limiar", () => {
+    expect(tomTempoParado(DIAS_PARADO_ATENCAO)).toBe("ATENCAO");
+  });
+
+  it("vira risco no limiar maior", () => {
+    expect(tomTempoParado(DIAS_PARADO_RISCO)).toBe("RISCO");
+    expect(tomTempoParado(DIAS_PARADO_RISCO + 30)).toBe("RISCO");
+  });
+});
+
+describe("fmtTempoNoEstagio", () => {
+  it("mostra traço sem informação", () => {
+    expect(fmtTempoNoEstagio(null)).toBe("—");
+  });
+
+  it("usa Hoje, singular e plural", () => {
+    expect(fmtTempoNoEstagio(0)).toBe("Hoje");
+    expect(fmtTempoNoEstagio(1)).toBe("1 dia");
+    expect(fmtTempoNoEstagio(9)).toBe("9 dias");
+  });
+});
+
+describe("calcResumoPipeline", () => {
+  it("soma e conta apenas estágios ativos", () => {
+    const r = calcResumoPipeline([
+      { estagio: "LEAD", valorEstimadoCentavos: 100000 },
+      { estagio: "NEGOCIACAO", valorEstimadoCentavos: 300000 },
+      { estagio: "FECHADO", valorEstimadoCentavos: 900000 },
+      { estagio: "PERDIDO", valorEstimadoCentavos: 500000 },
+    ]);
+    expect(r.quantidade).toBe(2);
+    expect(r.totalCentavos).toBe(400000);
+  });
+
+  it("calcula ticket médio só sobre quem tem valor", () => {
+    const r = calcResumoPipeline([
+      { estagio: "LEAD", valorEstimadoCentavos: 100000 },
+      { estagio: "LEAD", valorEstimadoCentavos: 300000 },
+      { estagio: "LEAD", valorEstimadoCentavos: null },
+    ]);
+    expect(r.quantidade).toBe(3);
+    expect(r.ticketMedioCentavos).toBe(200000);
+  });
+
+  it("devolve ticket médio null quando ninguém tem valor", () => {
+    const r = calcResumoPipeline([{ estagio: "LEAD", valorEstimadoCentavos: null }]);
+    expect(r.ticketMedioCentavos).toBeNull();
+  });
+
+  it("deixa o ponderado null enquanto não houver probabilidade", () => {
+    const r = calcResumoPipeline([{ estagio: "LEAD", valorEstimadoCentavos: 100000 }]);
+    expect(r.ponderadoCentavos).toBeNull();
+  });
+
+  it("zera com pipeline vazio", () => {
+    expect(calcResumoPipeline([])).toEqual({
+      totalCentavos: 0,
+      quantidade: 0,
+      ticketMedioCentavos: null,
+      ponderadoCentavos: null,
+    });
+  });
+});
+
+describe("labelMotivoPerda", () => {
+  it("traduz os motivos conhecidos", () => {
+    expect(labelMotivoPerda("SEM_RESPOSTA")).toBe("Sem resposta");
+  });
+
+  it("devolve null sem motivo", () => {
+    expect(labelMotivoPerda(null)).toBeNull();
+  });
+
+  it("devolve o valor cru se for desconhecido", () => {
+    expect(labelMotivoPerda("XPTO")).toBe("XPTO");
+  });
+});

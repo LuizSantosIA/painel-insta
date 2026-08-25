@@ -1,42 +1,29 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Users, Plus, Search, X, Check, Pencil, Trash2, Phone, Mail, Loader2, ChevronDown, Tag } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Plus, Search, X, Check, Loader2, ChevronDown } from "lucide-react";
+import { fmtBRL } from "@/lib/financeiro";
+import { fmtDataHumana } from "@/lib/cliente-360";
+import type { ClienteListaItem } from "@/app/api/clients/route";
+import { Avatar, SaudeIndicator, StatusBadge, labelStatus } from "@/components/cliente/saude-indicator";
+import { RowMenu } from "@/components/cliente/row-menu";
 
-interface Client {
-  id: string;
-  name: string;
-  email: string | null;
-  phone: string | null;
-  instagram: string | null;
-  company: string | null;
-  notes: string | null;
-  status: string;
-  source: string | null;
-  tags: string | null;
-  createdAt: string;
-  deals: { id: string; stage: string; value: number }[];
-  tasks: { id: string }[];
+const EMPTY_FORM = {
+  name: "", email: "", phone: "", instagram: "", company: "",
+  notes: "", status: "lead", source: "", tags: "",
+};
+
+/** Receita da linha: MRR quando há recorrência, senão o total já recebido. */
+function textoReceita(c: ClienteListaItem): { valor: string; sufixo: string | null } | null {
+  if (c.mrrCentavos > 0) return { valor: fmtBRL(c.mrrCentavos), sufixo: "/mês" };
+  if (c.receitaRecebidaCentavos > 0) return { valor: fmtBRL(c.receitaRecebidaCentavos), sufixo: null };
+  return null;
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  lead: "Lead",
-  active: "Cliente",
-  inactive: "Inativo",
-  lost: "Perdido",
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  lead: "bg-blue-500/15 text-blue-400",
-  active: "bg-emerald-500/15 text-emerald-400",
-  inactive: "bg-zinc-500/15 text-zinc-400",
-  lost: "bg-rose-500/15 text-rose-400",
-};
-
-const EMPTY_FORM = { name: "", email: "", phone: "", instagram: "", company: "", notes: "", status: "lead", source: "", tags: "" };
-
 export default function ClientesPage() {
-  const [clients, setClients] = useState<Client[]>([]);
+  const router = useRouter();
+  const [clients, setClients] = useState<ClienteListaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -44,193 +31,275 @@ export default function ClientesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
-  const [selected, setSelected] = useState<Client | null>(null);
 
   useEffect(() => {
-    fetch("/api/clients").then(r => r.json()).then(setClients).finally(() => setLoading(false));
+    fetch("/api/clients")
+      .then((r) => r.json())
+      .then((lista: ClienteListaItem[]) => {
+        setClients(lista);
+        // Veio do perfil 360° pelo menu Editar: abre o drawer daquele cliente.
+        const alvo = new URLSearchParams(window.location.search).get("editar");
+        const cliente = alvo ? lista.find((c) => c.id === alvo) : null;
+        if (cliente) openEdit(cliente);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
-  const filtered = clients.filter(c => {
+  // Aberto pelo "+ Novo" do painel: /negocio/clientes?novo=1 já cai no formulário.
+  // Tem de ser efeito: ler a URL durante o render divergiria do HTML do servidor
+  // e quebraria a hidratação.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("novo") !== "1") return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- abertura única no mount, vinda da URL
+    setDrawerOpen(true);
+  }, []);
+
+  const filtered = clients.filter((c) => {
     const q = query.toLowerCase();
-    const matchQ = !q || c.name.toLowerCase().includes(q) || c.email?.toLowerCase().includes(q) || c.phone?.includes(q) || c.instagram?.toLowerCase().includes(q);
+    const matchQ =
+      !q ||
+      c.name.toLowerCase().includes(q) ||
+      c.company?.toLowerCase().includes(q) ||
+      c.email?.toLowerCase().includes(q) ||
+      c.phone?.includes(q) ||
+      c.instagram?.toLowerCase().includes(q);
     const matchS = statusFilter === "all" || c.status === statusFilter;
     return matchQ && matchS;
   });
 
-  function openNew() { setEditingId(null); setForm(EMPTY_FORM); setDrawerOpen(true); }
-  function openEdit(c: Client) {
-    setEditingId(c.id);
-    setForm({ name: c.name, email: c.email || "", phone: c.phone || "", instagram: c.instagram || "", company: c.company || "", notes: c.notes || "", status: c.status, source: c.source || "", tags: c.tags || "" });
+  function openNew() {
+    setEditingId(null);
+    setForm(EMPTY_FORM);
     setDrawerOpen(true);
-    setSelected(null);
   }
-  function closeDrawer() { setDrawerOpen(false); setEditingId(null); setForm(EMPTY_FORM); }
+
+  function openEdit(c: ClienteListaItem) {
+    setEditingId(c.id);
+    setForm({
+      name: c.name, email: c.email || "", phone: c.phone || "", instagram: c.instagram || "",
+      company: c.company || "", notes: c.notes || "", status: c.status,
+      source: c.source || "", tags: c.tags || "",
+    });
+    setDrawerOpen(true);
+  }
+
+  function closeDrawer() {
+    setDrawerOpen(false);
+    setEditingId(null);
+    setForm(EMPTY_FORM);
+  }
+
+  async function recarregar() {
+    const r = await fetch("/api/clients");
+    if (r.ok) setClients(await r.json());
+  }
 
   async function save() {
     if (!form.name.trim()) return;
     setSaving(true);
     try {
       if (editingId) {
-        const res = await fetch(`/api/clients/${editingId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
-        const updated = await res.json();
-        setClients(prev => prev.map(c => c.id === editingId ? { ...c, ...updated } : c));
-        if (selected?.id === editingId) setSelected({ ...selected, ...updated });
+        await fetch(`/api/clients/${editingId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(form),
+        });
       } else {
-        const res = await fetch("/api/clients", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
-        const created = await res.json();
-        setClients(prev => [{ ...created, deals: [], tasks: [] }, ...prev]);
+        await fetch("/api/clients", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(form),
+        });
       }
+      await recarregar();
       closeDrawer();
-    } finally { setSaving(false); }
+    } finally {
+      setSaving(false);
+    }
   }
 
-  async function remove(id: string) {
-    if (!confirm("Excluir cliente?")) return;
-    await fetch(`/api/clients/${id}`, { method: "DELETE" });
-    setClients(prev => prev.filter(c => c.id !== id));
-    if (selected?.id === id) setSelected(null);
+  async function alterarStatus(c: ClienteListaItem, novo: string) {
+    setClients((prev) => prev.map((x) => (x.id === c.id ? { ...x, status: novo } : x)));
+    await fetch(`/api/clients/${c.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: novo }),
+    });
+    recarregar();
   }
+
+  async function arquivar(c: ClienteListaItem) {
+    const arquivando = !c.arquivadoEm;
+    if (arquivando && !confirm(`Arquivar ${c.name}? O histórico é preservado e ele sai da lista.`)) return;
+    await fetch(`/api/clients/${c.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ arquivadoEm: arquivando ? new Date().toISOString() : null }),
+    });
+    recarregar();
+  }
+
+  async function excluir(c: ClienteListaItem) {
+    if (!confirm(`Excluir ${c.name} definitivamente? As interações registradas são apagadas junto.`)) return;
+    await fetch(`/api/clients/${c.id}`, { method: "DELETE" });
+    setClients((prev) => prev.filter((x) => x.id !== c.id));
+  }
+
+  const colunas = ["Cliente", "Status", "Saúde", "Receita", "Último contato", "Próxima ação"];
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="brand-gradient flex h-9 w-9 items-center justify-center rounded-xl">
-            <Users className="h-5 w-5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Clientes</h1>
-            <p className="text-sm text-muted">{clients.length} contato{clients.length !== 1 ? "s" : ""} cadastrado{clients.length !== 1 ? "s" : ""}</p>
-          </div>
+    <div className="space-y-5">
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-[20px] font-semibold leading-tight tracking-tight">Clientes</h1>
+          <p className="mt-0.5 text-[12px] text-muted">
+            {clients.length} contato{clients.length !== 1 ? "s" : ""} cadastrado{clients.length !== 1 ? "s" : ""}
+          </p>
         </div>
-        <button onClick={openNew} className="brand-gradient inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-white shadow-sm">
-          <Plus className="h-4 w-4" /> Novo cliente
+        <button
+          onClick={openNew}
+          className="inline-flex items-center gap-1.5 rounded-[9px] border border-border bg-surface-2/70 px-2.5 py-1.5 text-[12px] font-medium text-foreground-2 transition-all duration-150 hover:border-brand/35 hover:bg-surface-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand/50 active:scale-[0.98]"
+        >
+          <Plus className="h-3.5 w-3.5" /> Novo cliente
         </button>
-      </div>
+      </header>
 
-      {/* Filtros */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-          <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar por nome, e-mail, telefone…" className="w-full rounded-lg border border-border bg-surface py-2.5 pl-9 pr-3 text-sm outline-none focus:border-brand" />
+      <div className="flex flex-wrap items-center gap-2.5">
+        <div className="relative min-w-[200px] flex-1">
+          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-2" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Buscar por nome, empresa, e-mail, telefone…"
+            className="w-full rounded-[9px] border border-border bg-surface py-1.5 pl-8 pr-3 text-[12px] outline-none transition-colors duration-150 placeholder:text-muted-2 focus:border-brand/50"
+          />
         </div>
-        <div className="flex gap-2">
-          {["all", "lead", "active", "inactive", "lost"].map(s => (
-            <button key={s} onClick={() => setStatusFilter(s)} className={`rounded-full px-3 py-1.5 text-xs transition-colors ${statusFilter === s ? "bg-foreground text-background" : "border border-border text-muted hover:text-foreground"}`}>
-              {s === "all" ? "Todos" : STATUS_LABELS[s]}
+        <div className="flex gap-1.5">
+          {["all", "lead", "active", "inactive", "lost"].map((s) => (
+            <button
+              key={s}
+              onClick={() => setStatusFilter(s)}
+              className={`rounded-[7px] px-2.5 py-1 text-[11px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand/45 ${
+                statusFilter === s
+                  ? "bg-foreground text-background"
+                  : "border border-border text-muted hover:text-foreground"
+              }`}
+            >
+              {s === "all" ? "Todos" : labelStatus(s)}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Lista */}
       {loading ? (
-        <div className="flex items-center gap-2 py-8 text-sm text-muted"><Loader2 className="h-4 w-4 animate-spin" /> Carregando…</div>
+        <div className="flex items-center gap-2 py-6 text-[12px] text-muted">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Carregando…
+        </div>
       ) : filtered.length === 0 ? (
-        <div className="card flex flex-col items-center gap-3 py-14 text-center">
-          <Users className="h-10 w-10 text-muted" />
-          <div>
-            <p className="font-medium">Nenhum cliente encontrado</p>
-            <p className="mt-1 text-sm text-muted">Adicione seu primeiro cliente para começar.</p>
-          </div>
-          <button onClick={openNew} className="brand-gradient mt-1 inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium text-white">
-            <Plus className="h-4 w-4" /> Adicionar cliente
+        <div className="flex items-baseline gap-2 border-t border-border-subtle py-3">
+          <span className="text-[12px] font-medium text-foreground-2">
+            {clients.length === 0 ? "Nenhum cliente cadastrado" : "Nenhum cliente encontrado"}
+          </span>
+          <button
+            onClick={openNew}
+            className="text-[12px] text-brand transition-colors duration-150 hover:text-foreground focus-visible:outline-none"
+          >
+            {clients.length === 0 ? "+ Adicionar o primeiro" : "Limpe os filtros ou crie um novo"}
           </button>
         </div>
       ) : (
-        <div className="card overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="-mx-2 overflow-x-auto">
+          <table className="w-full min-w-[760px] border-collapse">
             <thead>
-              <tr className="border-b border-border text-left text-xs text-muted">
-                <th className="px-4 py-3 font-medium">Nome</th>
-                <th className="px-4 py-3 font-medium">Contato</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Negócios</th>
-                <th className="px-4 py-3 font-medium">Tarefas</th>
-                <th className="px-4 py-3" />
+              <tr className="border-b border-border-subtle">
+                {colunas.map((col) => (
+                  <th
+                    key={col}
+                    className="px-2 pb-1.5 text-left text-[10px] font-medium uppercase tracking-[0.09em] text-muted-2"
+                  >
+                    {col}
+                  </th>
+                ))}
+                <th className="w-8 px-2 pb-1.5" />
               </tr>
             </thead>
             <tbody>
-              {filtered.map(c => (
-                <tr key={c.id} onClick={() => setSelected(c)} className="cursor-pointer border-b border-border/60 hover:bg-surface-2/40 transition-colors">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <div className="brand-gradient flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white">
-                        {c.name.charAt(0).toUpperCase()}
+              {filtered.map((c) => {
+                const receita = textoReceita(c);
+                return (
+                  <tr
+                    key={c.id}
+                    onClick={() => router.push(`/negocio/clientes/${c.id}`)}
+                    className="group cursor-pointer border-b border-border-subtle/70 transition-colors duration-150 hover:bg-surface-2/40"
+                  >
+                    <td className="px-2 py-2">
+                      <div className="flex items-center gap-2.5">
+                        <Avatar nome={c.name} />
+                        <div className="min-w-0">
+                          <p className="truncate text-[12.5px] font-medium text-foreground">{c.name}</p>
+                          {(c.company || c.email) && (
+                            <p className="truncate text-[11px] text-muted">{c.company || c.email}</p>
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium">{c.name}</p>
-                        {c.company && <p className="text-xs text-muted">{c.company}</p>}
+                    </td>
+                    <td className="px-2 py-2">
+                      <StatusBadge status={c.status} />
+                    </td>
+                    <td className="px-2 py-2">
+                      <SaudeIndicator status={c.saude} motivo={c.saudeResumo} compacto />
+                    </td>
+                    <td className="px-2 py-2">
+                      {receita ? (
+                        <span className="whitespace-nowrap text-[12px] tabular-nums text-foreground-2">
+                          {receita.valor}
+                          {receita.sufixo && <span className="text-muted-2">{receita.sufixo}</span>}
+                        </span>
+                      ) : (
+                        <span className="text-[12px] text-muted-2">—</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-2">
+                      <span className="whitespace-nowrap text-[12px] text-muted">
+                        {fmtDataHumana(c.ultimoContatoEm)}
+                      </span>
+                    </td>
+                    <td className="px-2 py-2">
+                      {c.proximaAcao ? (
+                        <span className="flex min-w-0 items-baseline gap-1.5">
+                          <span className="truncate text-[12px] text-foreground-2">
+                            {c.proximaAcao.titulo}
+                          </span>
+                          <span
+                            className={`whitespace-nowrap text-[11px] ${
+                              c.proximaAcao.atrasado ? "text-[color:var(--danger)]" : "text-muted-2"
+                            }`}
+                          >
+                            · {c.proximaAcao.quando}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="text-[12px] text-muted-2">—</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-2">
+                      <div className="flex justify-end opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover:opacity-100">
+                        <RowMenu
+                          status={c.status}
+                          arquivado={Boolean(c.arquivadoEm)}
+                          onEditar={() => openEdit(c)}
+                          onStatus={(novo) => alterarStatus(c, novo)}
+                          onArquivar={() => arquivar(c)}
+                          onExcluir={() => excluir(c)}
+                        />
                       </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="space-y-0.5">
-                      {c.phone && <p className="flex items-center gap-1 text-xs text-muted"><Phone className="h-3 w-3" /> {c.phone}</p>}
-                      {c.email && <p className="flex items-center gap-1 text-xs text-muted"><Mail className="h-3 w-3" /> {c.email}</p>}
-                      {c.instagram && <p className="flex items-center gap-1 text-xs text-muted"><span className="text-[10px]">IG</span> {c.instagram}</p>}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${STATUS_COLORS[c.status]}`}>{STATUS_LABELS[c.status]}</span>
-                  </td>
-                  <td className="px-4 py-3 text-muted">{c.deals.length}</td>
-                  <td className="px-4 py-3 text-muted">{c.tasks.length}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                      <button onClick={() => openEdit(c)} className="rounded p-1 text-muted hover:text-foreground"><Pencil className="h-3.5 w-3.5" /></button>
-                      <button onClick={() => remove(c.id)} className="rounded p-1 text-muted hover:text-rose-400"><Trash2 className="h-3.5 w-3.5" /></button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
-      )}
-
-      {/* Detail panel */}
-      {selected && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setSelected(null)} />
-          <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-sm flex-col bg-background shadow-2xl border-l border-border">
-            <div className="flex items-center justify-between border-b border-border px-6 py-4">
-              <div className="flex items-center gap-3">
-                <div className="brand-gradient flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold text-white">{selected.name.charAt(0).toUpperCase()}</div>
-                <div>
-                  <p className="font-semibold">{selected.name}</p>
-                  {selected.company && <p className="text-xs text-muted">{selected.company}</p>}
-                </div>
-              </div>
-              <button onClick={() => setSelected(null)} className="rounded-lg p-1.5 text-muted hover:text-foreground"><X className="h-5 w-5" /></button>
-            </div>
-            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-              <span className={`rounded-full px-3 py-1 text-xs font-medium ${STATUS_COLORS[selected.status]}`}>{STATUS_LABELS[selected.status]}</span>
-              <div className="space-y-2">
-                {selected.phone && <div className="flex items-center gap-2 text-sm"><Phone className="h-4 w-4 text-muted" />{selected.phone}</div>}
-                {selected.email && <div className="flex items-center gap-2 text-sm"><Mail className="h-4 w-4 text-muted" />{selected.email}</div>}
-                {selected.instagram && <div className="flex items-center gap-2 text-sm"><span className="text-xs font-bold text-muted">IG</span>@{selected.instagram}</div>}
-              </div>
-              {selected.tags && (
-                <div className="flex flex-wrap gap-1.5">
-                  {selected.tags.split(",").map(t => (
-                    <span key={t} className="flex items-center gap-1 rounded-full bg-brand/15 px-2.5 py-1 text-xs text-brand"><Tag className="h-3 w-3" />{t.trim()}</span>
-                  ))}
-                </div>
-              )}
-              {selected.notes && <div className="rounded-lg bg-surface-2/50 p-3 text-sm text-muted">{selected.notes}</div>}
-              <div className="pt-2 flex gap-2">
-                <button onClick={() => openEdit(selected)} className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-border py-2.5 text-sm hover:bg-surface-2">
-                  <Pencil className="h-4 w-4" /> Editar
-                </button>
-                <button onClick={() => remove(selected.id)} className="rounded-xl border border-rose-500/30 px-4 py-2.5 text-sm text-rose-400 hover:bg-rose-500/10">
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-          </div>
-        </>
       )}
 
       {/* Drawer novo/editar */}
@@ -240,9 +309,11 @@ export default function ClientesPage() {
           <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col bg-background shadow-2xl">
             <div className="flex items-center justify-between border-b border-border px-6 py-4">
               <h2 className="font-semibold">{editingId ? "Editar cliente" : "Novo cliente"}</h2>
-              <button onClick={closeDrawer} className="rounded-lg p-1.5 text-muted hover:text-foreground"><X className="h-5 w-5" /></button>
+              <button onClick={closeDrawer} className="rounded-lg p-1.5 text-muted hover:text-foreground">
+                <X className="h-5 w-5" />
+              </button>
             </div>
-            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+            <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
               {[
                 { key: "name", label: "Nome *", placeholder: "Nome completo" },
                 { key: "company", label: "Empresa", placeholder: "Nome da empresa" },
@@ -252,13 +323,22 @@ export default function ClientesPage() {
               ].map(({ key, label, placeholder }) => (
                 <div key={key} className="space-y-1">
                   <label className="text-xs font-medium text-muted">{label}</label>
-                  <input value={(form as Record<string, string>)[key]} onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))} placeholder={placeholder} className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm placeholder:text-muted outline-none focus:border-brand" />
+                  <input
+                    value={(form as Record<string, string>)[key]}
+                    onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
+                    placeholder={placeholder}
+                    className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm outline-none placeholder:text-muted focus:border-brand"
+                  />
                 </div>
               ))}
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted">Status</label>
                 <div className="relative">
-                  <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))} className="w-full appearance-none rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm outline-none focus:border-brand pr-8">
+                  <select
+                    value={form.status}
+                    onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
+                    className="w-full appearance-none rounded-lg border border-border bg-surface-2 px-3 py-2.5 pr-8 text-sm outline-none focus:border-brand"
+                  >
                     <option value="lead">Lead</option>
                     <option value="active">Cliente ativo</option>
                     <option value="inactive">Inativo</option>
@@ -270,7 +350,11 @@ export default function ClientesPage() {
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted">Origem</label>
                 <div className="relative">
-                  <select value={form.source} onChange={e => setForm(f => ({ ...f, source: e.target.value }))} className="w-full appearance-none rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm outline-none focus:border-brand pr-8">
+                  <select
+                    value={form.source}
+                    onChange={(e) => setForm((f) => ({ ...f, source: e.target.value }))}
+                    className="w-full appearance-none rounded-lg border border-border bg-surface-2 px-3 py-2.5 pr-8 text-sm outline-none focus:border-brand"
+                  >
                     <option value="">Não informado</option>
                     <option value="instagram">Instagram</option>
                     <option value="whatsapp">WhatsApp</option>
@@ -283,20 +367,40 @@ export default function ClientesPage() {
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted">Tags</label>
-                <input value={form.tags} onChange={e => setForm(f => ({ ...f, tags: e.target.value }))} placeholder="vip, parceiro, interessado" className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm placeholder:text-muted outline-none focus:border-brand" />
+                <input
+                  value={form.tags}
+                  onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))}
+                  placeholder="vip, parceiro, interessado"
+                  className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm outline-none placeholder:text-muted focus:border-brand"
+                />
                 <p className="text-xs text-muted">Separe por vírgula</p>
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted">Observações</label>
-                <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Anotações sobre o cliente…" rows={3} className="w-full resize-none rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm placeholder:text-muted outline-none focus:border-brand" />
+                <textarea
+                  value={form.notes}
+                  onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                  placeholder="Anotações sobre o cliente…"
+                  rows={3}
+                  className="w-full resize-none rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm outline-none placeholder:text-muted focus:border-brand"
+                />
               </div>
             </div>
-            <div className="border-t border-border px-6 py-4 flex gap-3">
-              <button onClick={save} disabled={saving || !form.name.trim()} className="brand-gradient flex-1 inline-flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-medium text-white disabled:opacity-50">
+            <div className="flex gap-3 border-t border-border px-6 py-4">
+              <button
+                onClick={save}
+                disabled={saving || !form.name.trim()}
+                className="brand-gradient inline-flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-medium text-white disabled:opacity-50"
+              >
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                 {editingId ? "Salvar" : "Criar cliente"}
               </button>
-              <button onClick={closeDrawer} className="rounded-xl border border-border px-4 py-2.5 text-sm text-muted hover:text-foreground">Cancelar</button>
+              <button
+                onClick={closeDrawer}
+                className="rounded-xl border border-border px-4 py-2.5 text-sm text-muted hover:text-foreground"
+              >
+                Cancelar
+              </button>
             </div>
           </div>
         </>

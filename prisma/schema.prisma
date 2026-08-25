@@ -33,6 +33,12 @@ model Post {
   videoViews      Int @default(0)
   followersAtPost Int @default(0) // seguidores no momento do post (p/ taxa de engajamento)
 
+  // Pipeline editorial. Os posts vindos do Instagram nascem PUBLICADO — ideia,
+  // rascunho e agendado existem para o conteúdo planejado dentro do Command Center.
+  // IDEIA | RASCUNHO | AGENDADO | PUBLICADO
+  status       String    @default("PUBLICADO")
+  agendadoPara DateTime? // quando o conteúdo deve ir ao ar; null nos já publicados
+
   source    String   @default("manual") // manual | csv | instagram
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -40,6 +46,7 @@ model Post {
   @@index([postedAt])
   @@index([mediaType])
   @@index([category])
+  @@index([status])
 }
 
 // Snapshot diário da conta para o gráfico de evolução de seguidores.
@@ -81,6 +88,7 @@ model AutoRule {
   updatedAt       DateTime     @updatedAt
   logs            CommentLog[]
   gates           FollowGate[]
+  leads           Lead[]
 
   @@index([mediaId])
 }
@@ -128,28 +136,41 @@ model CommentLog {
   ruleId      String?
   rule        AutoRule? @relation(fields: [ruleId], references: [id])
   createdAt   DateTime  @default(now())
+
+  // A atribuição da Máquina agrupa por post e cruza o comentarista com a conversa
+  // no direct — sem estes índices a varredura cresce junto com o histórico.
+  @@index([igPostId])
+  @@index([senderId])
 }
 
 // ─── CRM ────────────────────────────────────────────────────────────────────
 
 model Client {
-  id              String    @id @default(cuid())
+  id              String        @id @default(cuid())
   name            String
   email           String?
   phone           String?
   instagram       String?
   company         String?
   notes           String?
-  status          String    @default("lead") // lead | active | inactive | lost
+  status          String        @default("lead") // lead | active | inactive | lost
   source          String? // instagram | whatsapp | referral | organic | other
   tags            String? // separadas por vírgula
   ultimoContatoEm DateTime? // atualizado manualmente via "Registrar contato" na tela de Saúde
   saudeNota       String? // nota interna sobre a situação do cliente
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  saudeStatus     String? // última classificação da engine de saúde — só para detectar transição
+  saudeAvaliadaEm DateTime? // quando a saúde foi avaliada pela última vez
+  arquivadoEm     DateTime? // arquivar preserva o histórico; excluir apaga
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
   deals           Deal[]
   tasks           Task[]
   receitas        Receita[]
+  leads           Lead[]
+  compromissos    Compromisso[]
+  interacoes      Interacao[]
+
+  @@index([arquivadoEm])
 }
 
 model Deal {
@@ -175,6 +196,7 @@ model Task {
   dueDate     DateTime?
   done        Boolean   @default(false)
   priority    String    @default("medium") // low | medium | high
+  concluidaEm DateTime? // preenchido ao marcar como feita — histórico daqui para frente
   clientId    String?
   client      Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
   createdAt   DateTime  @default(now())
@@ -202,12 +224,27 @@ model Lead {
   valorEstimadoCentavos Int?
   proximaAcao           String?
   proximaAcaoEm         DateTime?
-  postOrigemId          String? // preenchido pela Fase 3
+  postOrigemId          String? // igId da mídia que originou o lead (Post.igId)
+  conversaId            String? // conversa do direct que virou este lead
+  conversa              IgConversation? @relation(fields: [conversaId], references: [id], onDelete: SetNull)
+  automacaoId           String? // automação que trouxe a pessoa para a conversa
+  automacao             AutoRule?       @relation(fields: [automacaoId], references: [id], onDelete: SetNull)
   notas                 String?
+  clienteId             String? // vínculo opcional: nem todo lead virou cliente
+  cliente               Client?   @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+  estagioDesde          DateTime? // quando entrou no estágio atual — null nos leads anteriores
+  motivoPerda           String? // PRECO | SEM_RESPOSTA | TIMING | CONCORRENTE | NAO_FIT | DESISTIU | OUTRO
+  notaPerda             String?
   criadoEm              DateTime  @default(now())
   atualizadoEm          DateTime  @updatedAt
+  // Receitas geradas ao fechar esta oportunidade. A existência de qualquer uma
+  // delas é o que impede o fechamento de gerar receita duas vezes.
+  receitas              Receita[]
 
   @@index([estagio, proximaAcaoEm])
+  @@index([clienteId])
+  @@index([postOrigemId])
+  @@index([conversaId])
 }
 
 // ─── Compromissos ─────────────────────────────────────────────────────────────
@@ -223,18 +260,42 @@ model Compromisso {
   cumprido     Boolean   @default(false)
   cumpridoEm   DateTime?
   notas        String?
+  clienteId    String? // vínculo opcional: nem toda promessa é para um cliente
+  cliente      Client?   @relation(fields: [clienteId], references: [id], onDelete: SetNull)
   criadoEm     DateTime  @default(now())
   atualizadoEm DateTime  @updatedAt
 
   @@index([cumprido, prazoEm])
+  @@index([clienteId])
+}
+
+// Registro do que já aconteceu com um cliente. Não confundir com Task/Compromisso,
+// que são coisas a fazer.
+// tipo: LIGACAO | WHATSAPP | EMAIL | REUNIAO | NOTA | STATUS | SAUDE
+// STATUS e SAUDE são gravados pelo sistema (mudança de status do cliente e mudança
+// de classificação de saúde). Só LIGACAO/WHATSAPP/EMAIL/REUNIAO contam como contato
+// para efeito de diagnóstico — ver TIPOS_CONTATO em src/lib/saude.ts.
+model Interacao {
+  id        String   @id @default(cuid())
+  clienteId String
+  cliente   Client   @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  tipo      String
+  nota      String   @default("")
+  ocorreuEm DateTime @default(now())
+  criadoEm  DateTime @default(now())
+
+  @@index([clienteId, ocorreuEm])
 }
 
 // ─── Financeiro ──────────────────────────────────────────────────────────────
 
 // linha: INNOBI | MENTORIA | SERVICOS
 // tipo:  RECORRENTE | PONTUAL
-// status: PREVISTA | CONFIRMADA | RECEBIDA | INADIMPLENTE
+// status gravado: PREVISTA | CONFIRMADA | RECEBIDA | INADIMPLENTE | CANCELADA
 // SQLite não suporta enum nativo — valores validados na camada de API (Zod).
+//
+// "Vencida" NÃO é status gravado: deriva de vencimento < hoje && não recebida.
+// A regra mora em statusEfetivo(), em src/lib/financeiro.ts, e é a única do sistema.
 
 model Receita {
   id            String    @id @default(cuid())
@@ -245,20 +306,35 @@ model Receita {
   status        String    @default("PREVISTA")
   clienteId     String?
   cliente       Client?   @relation(fields: [clienteId], references: [id], onDelete: SetNull)
-  competencia   DateTime // sempre dia 1 do mês, UTC
+  competencia   DateTime // sempre dia 1 do mês, UTC — o mês a que a receita pertence
+  // Quando o dinheiro deve entrar. Null nas receitas anteriores a este campo: aí
+  // vale o último dia da competência (ver vencimentoEfetivo()).
+  vencimento    DateTime?
   dataRecebida  DateTime?
+  // Oportunidade que originou a receita — chave de idempotência do fluxo
+  // Pipeline → Financeiro: com receita já vinculada, fechar de novo não duplica.
+  leadId        String?
+  lead          Lead?     @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  // Agrupa as competências mensais da mesma recorrência (o "contrato"). A primeira
+  // receita da série carrega o próprio id; as réplicas dos meses seguintes repetem-no.
+  contratoId    String?
   criadoEm      DateTime  @default(now())
   atualizadoEm  DateTime  @updatedAt
 
   @@index([competencia, status])
   @@index([linha])
+  @@index([vencimento])
+  @@index([leadId])
+  @@index([contratoId])
 }
 
+// categoria: FERRAMENTAS | PRESTADORES | IMPOSTOS | ANUNCIOS | INFRA | OUTROS
 model Despesa {
   id            String   @id @default(cuid())
   descricao     String
   valorCentavos Int
   recorrente    Boolean  @default(false)
+  categoria     String   @default("OUTROS")
   competencia   DateTime // sempre dia 1 do mês, UTC
   criadoEm      DateTime @default(now())
 
@@ -281,8 +357,10 @@ model IgConversation {
   updatedAt  DateTime
   syncedAt   DateTime    @default(now())
   messages   IgMessage[]
+  leads      Lead[]
 
   @@index([updatedAt])
+  @@index([igUserId])
 }
 
 model IgMessage {

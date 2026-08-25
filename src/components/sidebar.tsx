@@ -5,8 +5,8 @@ import { usePathname } from "next/navigation";
 import {
   Sun, Briefcase, Cpu,
   Users, TrendingUp, CheckSquare, DollarSign, Activity, Flag, Gauge,
-  LayoutDashboard, Images, Sparkles, Plug,
-  Clock, CalendarDays, Wand2, Bot, Zap, Camera, Layers, MessageCircle,
+  LayoutDashboard, Images, Plug,
+  CalendarDays, Zap, Camera, MessageCircle,
 } from "lucide-react";
 
 type SubItem = {
@@ -53,17 +53,13 @@ const NAV: NavItem[] = [
     label: "Máquina",
     icon: Cpu,
     sub: [
-      { href: "/maquina/instagram",    label: "Instagram",         icon: LayoutDashboard },
-      { href: "/maquina/posts",        label: "Posts",             icon: Images },
-      { href: "/maquina/recomendacoes",label: "Recomendações",     icon: Sparkles },
-      { href: "/maquina/horarios",     label: "Melhores horários", icon: Clock },
-      { href: "/maquina/calendario",   label: "Calendário",        icon: CalendarDays },
-      { href: "/maquina/automacoes",   label: "Automações",        icon: Zap },
-      { href: "/maquina/gerador",      label: "Gerador",           icon: Wand2 },
-      { href: "/maquina/autoposts",    label: "Auto Posts",        icon: Layers },
-      { href: "/maquina/dms",          label: "DMs",               icon: MessageCircle },
-      { href: "/maquina/chat",         label: "Assistente IA",     icon: Bot },
-      { href: "/maquina/integracao",   label: "Integração",        icon: Plug },
+      { href: "/maquina/visao-geral",  label: "Visão geral",  icon: Gauge },
+      { href: "/maquina/conteudo",     label: "Conteúdo",     icon: Images,        grupo: "Aquisição" },
+      { href: "/maquina/calendario",   label: "Calendário",   icon: CalendarDays,  grupo: "Aquisição" },
+      { href: "/maquina/conversas",    label: "Conversas",    icon: MessageCircle, grupo: "Aquisição" },
+      { href: "/maquina/automacoes",   label: "Automações",   icon: Zap,           grupo: "Aquisição" },
+      { href: "/maquina/instagram",    label: "Audiência",    icon: LayoutDashboard, grupo: "Análise" },
+      { href: "/maquina/integracoes",  label: "Integrações",  icon: Plug,          grupo: "Configuração" },
     ],
   },
 ];
@@ -142,65 +138,26 @@ export function Sidebar() {
               {/* Primary item */}
               <Link
                 href={item.href}
-                className="group relative flex items-center gap-2.5 rounded-[14px] px-3 py-2.5 transition-all duration-200 mb-0.5"
-                style={
-                  active
-                    ? {
-                        background: "linear-gradient(135deg, rgba(79,140,255,0.16) 0%, rgba(124,92,255,0.1) 100%)",
-                        border: "1px solid rgba(79,140,255,0.24)",
-                        boxShadow: "0 2px 12px rgba(79,140,255,0.12), inset 0 1px 0 rgba(255,255,255,0.03)",
-                      }
-                    : {
-                        background: "transparent",
-                        border: "1px solid transparent",
-                      }
-                }
+                className="group relative mb-0.5 flex items-center gap-2.5 rounded-[10px] px-2.5 py-2 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand/40"
               >
-                {active && (
-                  <span style={{
-                    position: "absolute",
-                    left: 0, top: "50%",
-                    transform: "translateY(-50%)",
-                    width: "3px", height: "18px",
-                    borderRadius: "0 3px 3px 0",
-                    background: "linear-gradient(180deg, #4F8CFF, #7C5CFF)",
-                    boxShadow: "0 0 10px rgba(79,140,255,0.7)",
-                  }} />
-                )}
-
-                <span
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all duration-200"
-                  style={
-                    active
-                      ? {
-                          background: "linear-gradient(135deg, rgba(79,140,255,0.22) 0%, rgba(124,92,255,0.18) 100%)",
-                          boxShadow: "0 0 8px rgba(79,140,255,0.3)",
-                        }
-                      : { background: "transparent" }
-                  }
-                >
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center">
                   <Icon
-                    className="h-[15px] w-[15px] transition-all duration-200"
-                    style={{
-                      color: active ? "#6BABFF" : "#3d5275",
-                      filter: active ? "drop-shadow(0 0 4px rgba(79,140,255,0.6))" : "none",
-                    }}
+                    className="h-[15px] w-[15px] transition-colors duration-150"
+                    style={{ color: active ? "#6BABFF" : "#546d92" }}
                   />
                 </span>
 
                 <span
-                  className="text-[13px] font-semibold transition-colors duration-200 truncate"
-                  style={{ color: active ? "#dde8ff" : "#5d7899" }}
+                  className="truncate text-[13px] font-semibold tracking-tight transition-colors duration-150"
+                  style={{ color: active ? "#e2ebff" : "#7d94b8" }}
                 >
                   {item.label}
                 </span>
 
-                {!active && (
-                  <span
-                    className="absolute inset-0 rounded-[14px] opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                    style={{ background: "rgba(79,140,255,0.04)" }}
-                  />
-                )}
+                <span
+                  className="absolute inset-0 rounded-[10px] opacity-0 transition-opacity duration-150 group-hover:opacity-100"
+                  style={{ background: "rgba(79,140,255,0.05)" }}
+                />
               </Link>
 
               {/* Sub-items — show when section is active */}
@@ -214,20 +171,21 @@ export function Sidebar() {
                       <div key={sub.href}>
                       {abreGrupo && (
                         <p
-                          className="px-2.5 pt-2.5 pb-1 text-[9px] font-semibold uppercase tracking-[0.13em]"
-                          style={{ color: "#3a4d6b" }}
+                          className="px-2.5 pb-1 pt-2.5 text-[9px] font-semibold uppercase tracking-[0.13em]"
+                          style={{ color: "#5f769c" }}
                         >
                           {sub.grupo}
                         </p>
                       )}
                       <Link
                         href={sub.href}
-                        className="group relative flex items-center gap-2 rounded-[12px] px-2.5 py-1.5 transition-all duration-150"
+                        aria-current={subActive ? "page" : undefined}
+                        className="group relative flex items-center gap-2 rounded-[9px] px-2.5 py-[5px] transition-colors duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand/40"
                         style={
                           subActive
                             ? {
-                                background: "rgba(79,140,255,0.1)",
-                                border: "1px solid rgba(79,140,255,0.18)",
+                                background: "rgba(79,140,255,0.13)",
+                                border: "1px solid rgba(79,140,255,0.22)",
                               }
                             : {
                                 background: "transparent",
@@ -235,19 +193,33 @@ export function Sidebar() {
                               }
                         }
                       >
+                        {subActive && (
+                          <span
+                            style={{
+                              position: "absolute",
+                              left: -9,
+                              top: "50%",
+                              transform: "translateY(-50%)",
+                              width: 2,
+                              height: 14,
+                              borderRadius: "0 2px 2px 0",
+                              background: "#4F8CFF",
+                            }}
+                          />
+                        )}
                         <SubIcon
-                          className="h-[13px] w-[13px] shrink-0"
-                          style={{ color: subActive ? "#6BABFF" : "#3d5275" }}
+                          className="h-[13px] w-[13px] shrink-0 transition-colors duration-150"
+                          style={{ color: subActive ? "#7CB4FF" : "#546d92" }}
                         />
                         <span
-                          className="text-[12px] font-medium truncate"
-                          style={{ color: subActive ? "#c8d8ff" : "#4d6585" }}
+                          className="truncate text-[12px] font-medium transition-colors duration-150"
+                          style={{ color: subActive ? "#dce8ff" : "#8299bd" }}
                         >
                           {sub.label}
                         </span>
                         {!subActive && (
-                          <span className="absolute inset-0 rounded-[12px] opacity-0 group-hover:opacity-100 transition-opacity duration-150"
-                            style={{ background: "rgba(79,140,255,0.04)" }} />
+                          <span className="absolute inset-0 rounded-[9px] opacity-0 transition-opacity duration-150 group-hover:opacity-100"
+                            style={{ background: "rgba(79,140,255,0.05)" }} />
                         )}
                       </Link>
                       </div>
@@ -268,44 +240,31 @@ export function Sidebar() {
           height: "1px",
           background: "linear-gradient(90deg, transparent, rgba(79,140,255,0.2), transparent)",
         }} />
-        <div
-          className="flex items-center gap-3 rounded-[14px] px-3 py-2.5 cursor-default"
-          style={{
-            border: "1px solid rgba(30,45,74,0.5)",
-            background: "rgba(15,23,42,0.5)",
-          }}
-        >
+        <div className="flex cursor-default items-center gap-2.5 rounded-[9px] px-2 py-1.5">
           <div
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white text-[13px] font-bold"
-            style={{
-              background: "linear-gradient(135deg, #4F8CFF 0%, #7C5CFF 100%)",
-              boxShadow: "0 2px 10px rgba(79,140,255,0.35)",
-            }}
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white"
+            style={{ background: "linear-gradient(135deg, #4F8CFF 0%, #7C5CFF 100%)" }}
           >
             L
           </div>
-          <div className="min-w-0">
-            <p className="text-[13px] font-semibold truncate" style={{ color: "#e8f0ff" }}>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[12px] font-medium leading-tight" style={{ color: "#c9d8f5" }}>
               Luiz Santos
             </p>
-            <p className="text-[10px] truncate font-medium" style={{
-              background: "linear-gradient(90deg, #4F8CFF, #00D4FF)",
-              WebkitBackgroundClip: "text",
-              backgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              color: "transparent",
-            }}>
-              Conta Business · ATIVO
+            <p className="truncate text-[10px] leading-tight" style={{ color: "#6b81a8" }}>
+              Conta Business
             </p>
           </div>
-          <div style={{
-            width: 7, height: 7,
-            borderRadius: "50%",
-            background: "#22C55E",
-            boxShadow: "0 0 8px rgba(34,197,94,0.7)",
-            flexShrink: 0,
-            marginLeft: "auto",
-          }} />
+          <span
+            title="Ativo"
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: "50%",
+              background: "#22C55E",
+              flexShrink: 0,
+            }}
+          />
         </div>
       </div>
     </aside>

@@ -7,6 +7,7 @@ const CreateSchema = z.object({
   para: z.string().min(1),
   prazoEm: z.string().min(1),
   notas: z.string().nullable().optional(),
+  clienteId: z.string().nullable().optional(),
 });
 
 export async function GET(req: NextRequest) {

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { calcResumoFinanceiro, mesParaDate, ultimosMeses, type ResumoFinanceiro } from "@/lib/financeiro";
-import { calcSaude } from "@/lib/saude";
+import { type ResumoFinanceiro } from "@/lib/financeiro";
+import { carregarResumo, mesCorrente, receitasEmAberto } from "@/lib/financeiro-server";
+import { INCLUDE_SAUDE, diagnosticarCliente } from "@/lib/saude-server";
 import {
   calcAReceberVencido,
   montarAlertas,
@@ -29,33 +30,20 @@ export interface NegocioOverview {
 
 export async function GET() {
   const agora = new Date();
-  const mes = agora.toISOString().slice(0, 7);
 
-  const start = mesParaDate(mes);
-  const end = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 1));
-  const startPrev = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() - 1, 1));
-  const endPrev = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1));
-  const last3 = ultimosMeses(3);
-
+  // O financeiro inteiro vem de carregarResumo() — a mesma função que a tela de
+  // Financeiro e a home usam. O painel não tem régua monetária própria.
   const [
-    receitasMes,
-    receitasPrev,
+    financeiro,
     todasReceitas,
-    config,
     leads,
     compromissos,
     tarefas,
     clientes,
     clientesAtivos,
-    ...despesasMeses
   ] = await Promise.all([
-    prisma.receita.findMany({ where: { competencia: { gte: start, lt: end } } }),
-    prisma.receita.findMany({ where: { competencia: { gte: startPrev, lt: endPrev } } }),
-    prisma.receita.findMany({
-      where: { status: { not: "RECEBIDA" } },
-      include: { cliente: { select: { name: true } } },
-    }),
-    prisma.config.findUnique({ where: { id: "singleton" } }),
+    carregarResumo(mesCorrente(agora), agora),
+    receitasEmAberto(),
     prisma.lead.findMany(),
     prisma.compromisso.findMany({ where: { cumprido: false } }),
     prisma.task.findMany({
@@ -63,44 +51,29 @@ export async function GET() {
       include: { client: { select: { name: true } } },
     }),
     prisma.client.findMany({
-      where: { status: { in: ["active", "lead", "inactive"] } },
-      include: { receitas: { select: { status: true, competencia: true } } },
+      where: { arquivadoEm: null, status: { in: ["active", "lead", "inactive"] } },
+      include: INCLUDE_SAUDE,
     }),
     prisma.client.count({ where: { status: "active" } }),
-    ...last3.map((m) => {
-      const s = mesParaDate(m);
-      const e = new Date(Date.UTC(s.getUTCFullYear(), s.getUTCMonth() + 1, 1));
-      return prisma.despesa.aggregate({
-        where: { competencia: { gte: s, lt: e } },
-        _sum: { valorCentavos: true },
-      });
-    }),
   ]);
-
-  const financeiro = calcResumoFinanceiro({
-    receitasMes,
-    receitasMesAnterior: receitasPrev,
-    saldoCentavos: config?.saldoCaixa ?? 0,
-    despesasPorMes: despesasMeses.map((d) => ({ totalCentavos: d._sum.valorCentavos ?? 0 })),
-  });
 
   const receitasAbertas: ReceitaOverview[] = todasReceitas.map((r) => ({
     id: r.id,
     descricao: r.descricao,
     valorCentavos: r.valorCentavos,
+    tipo: r.tipo,
     status: r.status,
     competencia: r.competencia,
+    vencimento: r.vencimento,
+    clienteId: r.clienteId,
     clienteNome: r.cliente?.name ?? null,
   }));
 
+  // O diagnóstico vem inteiro da engine — o painel não tem régua própria de saúde.
   const saudeClientes: ClienteSaudeOverview[] = clientes.map((c) => ({
     id: c.id,
     name: c.name,
-    saude: calcSaude({
-      status: c.status,
-      ultimoContatoEm: c.ultimoContatoEm,
-      receitas: c.receitas.map((r) => ({ status: r.status, competencia: r.competencia })),
-    }),
+    diagnostico: diagnosticarCliente(c, agora),
   }));
 
   const leadsOverview = leads.map((l) => ({

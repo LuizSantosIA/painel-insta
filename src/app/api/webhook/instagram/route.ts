@@ -321,6 +321,8 @@ async function criarLeadSeConfigurado(
   const amanha = new Date();
   amanha.setUTCDate(amanha.getUTCDate() + 1);
 
+  // A automação que criou o lead fica registrada: é o que permite medir, depois,
+  // quais regras geram oportunidade — e não só quantas vezes dispararam.
   await prisma.lead.create({
     data: {
       nome: dados.username || dados.senderId,
@@ -331,6 +333,8 @@ async function criarLeadSeConfigurado(
       proximaAcao: "Qualificar lead do Instagram",
       proximaAcaoEm: amanha,
       postOrigemId: dados.postId,
+      automacaoId: rule.id,
+      estagioDesde: new Date(),
     },
   });
   console.log("[webhook] Lead criado para", contato, "post", dados.postId);
