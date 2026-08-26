@@ -222,9 +222,16 @@ async function processarMensagem(evento: MessagingEvent) {
   // Ecos são as nossas próprias mensagens voltando — ignorar sempre.
   if (evento.message?.is_echo || evento.message?.is_deleted) return;
 
-  const mid = evento.message?.mid ?? evento.postback?.mid ?? "";
   const texto = evento.message?.text ?? evento.postback?.title ?? "";
   const payload = evento.message?.quick_reply?.payload ?? evento.postback?.payload ?? "";
+
+  // Nem todo postback traz mid. Sem chave, o evento seria descartado pela trava de
+  // idempotência logo abaixo — então derivamos uma de quem tocou, no quê e quando,
+  // que é igualmente estável quando o Meta reenvia o mesmo toque.
+  const mid =
+    evento.message?.mid ??
+    evento.postback?.mid ??
+    (payload ? ["postback", igsid, payload, evento.timestamp ?? ""].join(":") : "");
 
   console.log("[webhook] mensagem:", { igsid, texto: texto.slice(0, 50), payload });
 

@@ -3,8 +3,8 @@ import { prisma } from "@/lib/prisma";
 import type { AutoRule } from "@/generated/prisma/client";
 import {
   isFollower,
-  sendQuickReplies,
-  sendQuickRepliesToCommenter,
+  sendPostbackButtons,
+  sendPostbackButtonsToCommenter,
   sendUrlButtons,
   sendDmToCommenter,
   sendDirectMessage,
@@ -25,16 +25,23 @@ import {
  * As decisões puras ficam em follow-gate-core.ts.
  *
  * Fluxo:
- *   1. A regra dispara (comentário ou DM) → mandamos o pedido de follow com um quick reply.
- *   2. A pessoa toca no botão → o título vira uma mensagem de verdade na conversa,
- *      o que dá o consentimento que a User Profile API exige.
+ *   1. A regra dispara (comentário ou DM) → mandamos o pedido de follow como um
+ *      template de botão, que fica dentro do balão até ser tocado.
+ *   2. A pessoa toca → o toque chega no webhook como messaging_postbacks.
  *   3. Consultamos is_user_follow_business e decidimos entregar, repetir ou desistir.
  */
 
 export { gateConfigurado, normalizar, ruleIdDoPayload } from "@/lib/follow-gate-core";
 
+/**
+ * O pedido de follow usa template de botão, não quick reply.
+ *
+ * Quick reply vira chip na barra de digitação e some quando a pessoa sai da
+ * conversa — o botão precisa continuar no balão até ser tocado, do mesmo jeito
+ * que o botão do link. O toque chega no webhook como messaging_postbacks.
+ */
 async function pedirFollow(rule: AutoRule, igsid: string): Promise<void> {
-  await sendQuickReplies(igsid, textoPedido(rule), [
+  await sendPostbackButtons(igsid, textoPedido(rule), [
     { title: rotuloBotao(rule), payload: payloadDaRegra(rule.id) },
   ]);
 }
@@ -85,9 +92,9 @@ export async function iniciarGatePorDm(
 
 /**
  * Abre a trava a partir de um comentário, usando private reply (recipient.comment_id).
- * A doc da Meta não garante quick_replies em private reply, então se falhar mandamos
- * texto puro pedindo para a pessoa responder com o rótulo do botão — o handler de DM
- * reconhece essa resposta e continua o fluxo do mesmo jeito.
+ * A doc da Meta não garante template de botão em private reply, então se falhar
+ * mandamos texto puro pedindo para a pessoa responder com o rótulo do botão — o
+ * handler de DM reconhece essa resposta e continua o fluxo do mesmo jeito.
  */
 export async function iniciarGatePorComentario(
   rule: AutoRule,
@@ -101,11 +108,11 @@ export async function iniciarGatePorComentario(
   const rotulo = rotuloBotao(rule);
 
   try {
-    await sendQuickRepliesToCommenter(commentId, textoPedido(rule), [
+    await sendPostbackButtonsToCommenter(commentId, textoPedido(rule), [
       { title: rotulo, payload: payloadDaRegra(rule.id) },
     ]);
   } catch (e) {
-    console.warn("[gate] quick reply por comment_id falhou, caindo para texto:", (e as Error).message);
+    console.warn("[gate] botão por comment_id falhou, caindo para texto:", (e as Error).message);
     try {
       await sendDmToCommenter(commentId, `${textoPedido(rule)}\n\nDepois responda "${rotulo}" aqui.`);
     } catch (e2) {

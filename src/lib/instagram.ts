@@ -312,6 +312,68 @@ export async function sendUrlButtons(
   );
 }
 
+export interface PostbackButton {
+  title: string;
+  payload: string;
+}
+
+/**
+ * Template de botão com postback — o botão fica DENTRO do balão, igual ao de link.
+ *
+ * Diferente de quick_replies, que vira chip na barra de digitação e some quando a
+ * pessoa sai da conversa ou toca em outra coisa. Para um botão que precisa
+ * continuar lá até ser usado, o template é o formato certo.
+ * O toque chega no webhook em messaging_postbacks.
+ */
+export async function sendPostbackButtons(
+  recipientId: string,
+  text: string,
+  buttons: PostbackButton[]
+): Promise<void> {
+  await postMessage(
+    { id: recipientId },
+    {
+      attachment: {
+        type: "template",
+        payload: {
+          template_type: "button",
+          text: text.slice(0, 640),
+          buttons: buttons.slice(0, 3).map((b) => ({
+            type: "postback",
+            title: b.title.slice(0, QUICK_REPLY_MAX),
+            payload: b.payload,
+          })),
+        },
+      },
+    }
+  );
+}
+
+/** Template de botão endereçado a um comentário (private reply). */
+export async function sendPostbackButtonsToCommenter(
+  commentId: string,
+  text: string,
+  buttons: PostbackButton[]
+): Promise<void> {
+  await postMessage(
+    { comment_id: commentId },
+    {
+      attachment: {
+        type: "template",
+        payload: {
+          template_type: "button",
+          text: text.slice(0, 640),
+          buttons: buttons.slice(0, 3).map((b) => ({
+            type: "postback",
+            title: b.title.slice(0, QUICK_REPLY_MAX),
+            payload: b.payload,
+          })),
+        },
+      },
+    }
+  );
+}
+
 /** Mesma coisa que sendQuickReplies, mas endereçado a um comentário (private reply).
  *  A doc da Meta não confirma que private reply aceita quick_replies, então quem chama
  *  precisa ter um fallback em texto puro. */
