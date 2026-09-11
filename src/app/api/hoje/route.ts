@@ -4,6 +4,7 @@ import { receitasEmAberto } from "@/lib/financeiro-server";
 import { INCLUDE_SAUDE, diagnosticarCliente } from "@/lib/saude-server";
 import { carregarMaquina } from "@/lib/maquina-dados";
 import { montarAlertasMaquina } from "@/lib/maquina";
+import { alertasEngine } from "@/lib/engine/alertas";
 import {
   montarAlertas,
   type ClienteSaudeOverview,
@@ -38,6 +39,7 @@ export async function GET() {
     tarefasAbertas,
     clientes,
     maquina,
+    alertasDaEngine,
   ] = await Promise.all([
     receitasEmAberto(),
     prisma.lead.findMany(),
@@ -51,6 +53,7 @@ export async function GET() {
       include: INCLUDE_SAUDE,
     }),
     carregarMaquina(),
+    alertasEngine(),
   ]);
 
   const receitas: ReceitaOverview[] = receitasAbertas.map((r) => ({
@@ -121,7 +124,7 @@ export async function GET() {
 
   const briefing = montarBriefing({
     agora,
-    atencao: priorizarAtencao([...alertasNegocio, ...alertasMaquina]),
+    atencao: priorizarAtencao([...alertasNegocio, ...alertasMaquina, ...alertasDaEngine]),
     agenda: agendaDeHoje(compromissosOverview),
     tarefas: tarefasDeHoje(tarefasOverview),
     proximos: proximosDias(compromissosOverview, tarefasOverview),

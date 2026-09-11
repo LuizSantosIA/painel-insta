@@ -39,6 +39,33 @@ model Post {
   status       String    @default("PUBLICADO")
   agendadoPara DateTime? // quando o conteúdo deve ir ao ar; null nos já publicados
 
+  // ─── Máquina de conteúdo ───
+  // etapa é a granularidade fina do pipeline de agentes; status continua sendo o
+  // que Conteúdo e Calendário leem e é derivado dela (ver lib/engine/etapas.ts).
+  // RADAR | IDEIA | SELECIONADA | COPY | DESIGN | REVISAO | AGUARDANDO_APROVACAO |
+  // AGENDADO | PUBLICADO | ANALISE | REPROVADO
+  etapa             String?
+  tituloInterno     String?
+  tipoConteudo      String? // VIRAL_ADAPTADO | ORIGINAL | AUTORIDADE | EMPRESA
+  objetivo          String? // ALCANCE | AUTORIDADE | CONVERSAO
+  tema              String?
+  scoreEstrategia   String? // JSON: { viralidade, fit, producao, valor, conversao, media }
+  scoreFinal        Int?
+  legendaFinal      String?
+  palavraChave      String? // CTA "Comente X" — vira AutoRule no lead magnet
+  horarioSugerido   DateTime?
+  geradoPelaMaquina Boolean               @default(false)
+  fonteId           String?
+  fonte             FonteConteudo?        @relation(fields: [fonteId], references: [id], onDelete: SetNull)
+  estiloVisualId    String?
+  estiloVisual      EstiloVisual?         @relation(fields: [estiloVisualId], references: [id], onDelete: SetNull)
+  slides            PostSlide[]
+  execucoes         ExecucaoAgente[]
+  revisoes          RevisaoConteudo[]
+  snapshots         PostMetricaSnapshot[]
+  aprendizados      Aprendizado[]
+  autoRules         AutoRule[]
+
   source    String   @default("manual") // manual | csv | instagram
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -47,6 +74,7 @@ model Post {
   @@index([mediaType])
   @@index([category])
   @@index([status])
+  @@index([etapa])
 }
 
 // Snapshot diário da conta para o gráfico de evolução de seguidores.
@@ -84,6 +112,8 @@ model AutoRule {
   gateButtonLabel String       @default("Seguindo") // título do quick reply (máx. 20 chars)
   gateDeliverText String       @default("") // mensagem de entrega do link
   gateLinkLabel   String       @default("Acessar") // título do botão web_url (máx. 20 chars)
+  postId          String? // post da máquina que gerou esta regra (antes de existir igId)
+  post            Post?        @relation(fields: [postId], references: [id], onDelete: SetNull)
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
   logs            CommentLog[]
@@ -215,10 +245,10 @@ model Task {
 // proximaAcao + proximaAcaoEm: obrigatórios para estágios ativos (validados na API)
 
 model Lead {
-  id                    String    @id @default(cuid())
+  id                    String          @id @default(cuid())
   nome                  String
   contato               String
-  estagio               String    @default("LEAD")
+  estagio               String          @default("LEAD")
   origem                String
   linhaInteresse        String
   valorEstimadoCentavos Int?
@@ -231,12 +261,12 @@ model Lead {
   automacao             AutoRule?       @relation(fields: [automacaoId], references: [id], onDelete: SetNull)
   notas                 String?
   clienteId             String? // vínculo opcional: nem todo lead virou cliente
-  cliente               Client?   @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+  cliente               Client?         @relation(fields: [clienteId], references: [id], onDelete: SetNull)
   estagioDesde          DateTime? // quando entrou no estágio atual — null nos leads anteriores
   motivoPerda           String? // PRECO | SEM_RESPOSTA | TIMING | CONCORRENTE | NAO_FIT | DESISTIU | OUTRO
   notaPerda             String?
-  criadoEm              DateTime  @default(now())
-  atualizadoEm          DateTime  @updatedAt
+  criadoEm              DateTime        @default(now())
+  atualizadoEm          DateTime        @updatedAt
   // Receitas geradas ao fechar esta oportunidade. A existência de qualquer uma
   // delas é o que impede o fechamento de gerar receita duas vezes.
   receitas              Receita[]
@@ -343,9 +373,12 @@ model Despesa {
 
 // Configurações globais — singleton (id = "singleton")
 model Config {
-  id           String   @id @default("singleton")
-  saldoCaixa   Int      @default(0) // centavos — informado manualmente
-  atualizadoEm DateTime @updatedAt
+  id               String   @id @default("singleton")
+  saldoCaixa       Int      @default(0) // centavos — informado manualmente
+  // Máquina de conteúdo. MANUAL | COPILOTO | AUTOPILOT — só AUTOPILOT publica sozinho.
+  modoMaquina      String   @default("COPILOTO")
+  tetoExecucoesDia Int      @default(60) // execuções de agente por dia antes de a máquina parar
+  atualizadoEm     DateTime @updatedAt
 }
 
 // ─── Instagram DMs ───────────────────────────────────────────────────────────
@@ -378,17 +411,132 @@ model IgMessage {
 
 // ─── Auto Posts ──────────────────────────────────────────────────────────────
 
-// status: RASCUNHO | APROVADO | REJEITADO | PUBLICADO
-// slides: JSON serializado — [{titulo: string, corpo: string}]
-model PostRascunho {
+// ─── Máquina de conteúdo ─────────────────────────────────────────────────────
+
+// O que o Radar encontrou. Nunca vira post sozinho — o Estrategista decide.
+model FonteConteudo {
+  id             String    @id @default(cuid())
+  url            String
+  titulo         String?
+  autor          String?
+  plataforma     String? // instagram | x | youtube | blog | newsletter | github | outro
+  publicadoEm    DateTime?
+  tema           String?
+  formato        String? // carrossel | reels | artigo | thread | video
+  sinais         String? // JSON: { likes?, comentarios?, compartilhamentos?, views? } — só o que estava visível
+  resumo         String?
+  porQueFunciona String?
+  analise        String? // JSON do Viral Adapter: hook, promessa, mecanismo, estrutura, cta
+  conteudoBruto  String? // texto extraído da página, para os agentes lerem
+  origem         String    @default("MANUAL") // MANUAL (link colado) | BUSCA | INTERNO
+  descartada     Boolean   @default(false)
+  criadoEm       DateTime  @default(now())
+  posts          Post[]
+
+  @@index([criadoEm])
+}
+
+// Um slide do carrossel. Gerado e regenerado individualmente, com versão.
+model PostSlide {
   id           String   @id @default(cuid())
-  topico       String
-  slides       String
-  legenda      String
-  status       String   @default("RASCUNHO")
-  igMediaId    String?
-  geradoEm     DateTime @default(now())
+  postId       String
+  post         Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  ordem        Int
+  headline     String   @default("")
+  corpo        String   @default("")
+  microcopy    String   @default("")
+  layout       String   @default("TEXTO") // chave do layout dentro do estilo visual
+  promptVisual String? // direção do Diretor Visual para este slide
+  imagemUrl    String? // PNG 1080x1350 no Blob
+  assetUrl     String? // elemento ilustrativo gerado (quando o estilo pede)
+  versao       Int      @default(1)
   atualizadoEm DateTime @updatedAt
 
-  @@index([status, geradoEm])
+  @@unique([postId, ordem])
+}
+
+// Sistema visual reutilizável — o template de código é escolhido pela chave.
+model EstiloVisual {
+  id            String   @id @default(cuid())
+  chave         String   @unique // EDITORIAL_ORANGE | BLUE_TECH | MINIMAL_EDITORIAL | VOXEL_TECH
+  nome          String
+  descricao     String   @default("")
+  paleta        String   @default("{}") // JSON { fundo, texto, destaque, secundaria }
+  tipografia    String   @default("")
+  regras        String   @default("") // texto livre lido pelo Diretor Visual
+  referenciaUrl String? // carrossel de referência analisado
+  usaAsset      Boolean  @default(false) // precisa de elemento gerado por modelo de imagem
+  ativo         Boolean  @default(true)
+  criadoEm      DateTime @default(now())
+  posts         Post[]
+}
+
+// Cada chamada de agente. É a resposta para "quem criou, com que prompt, por quê".
+model ExecucaoAgente {
+  id         String   @id @default(cuid())
+  postId     String?
+  post       Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  slideOrdem Int?
+  agente     String // RADAR | ESTRATEGISTA | VIRAL_ADAPTER | COPYWRITER | DIRETOR_VISUAL | GERADOR | FACT_CHECKER | LEAD_MAGNET | REVISOR | PUBLICADOR | PERFORMANCE
+  etapa      String?
+  status     String   @default("OK") // OK | ERRO | ALERTA
+  entrada    String   @default("{}") // JSON
+  saida      String   @default("{}") // JSON
+  prompt     String   @default("")
+  modelo     String   @default("")
+  tokensIn   Int      @default(0)
+  tokensOut  Int      @default(0)
+  duracaoMs  Int      @default(0)
+  erro       String?
+  criadoEm   DateTime @default(now())
+
+  @@index([postId, criadoEm])
+  @@index([agente, criadoEm])
+  @@index([criadoEm])
+}
+
+// Sua decisão sobre um post. Motivo vira aprendizado.
+model RevisaoConteudo {
+  id       String   @id @default(cuid())
+  postId   String
+  post     Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  decisao  String // APROVADO | REPROVADO | ALTERACAO
+  escopo   String   @default("POST") // POST | SLIDE:n | COPY | LEGENDA | VISUAL
+  motivo   String   @default("")
+  criadoEm DateTime @default(now())
+
+  @@index([postId, criadoEm])
+}
+
+// Métricas em janelas fixas depois da publicação — o Post só guarda o valor atual.
+model PostMetricaSnapshot {
+  id          String   @id @default(cuid())
+  postId      String
+  post        Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  janela      String // 24H | 72H | 7D
+  likes       Int      @default(0)
+  comments    Int      @default(0)
+  saves       Int      @default(0)
+  shares      Int      @default(0)
+  reach       Int      @default(0)
+  impressions Int      @default(0)
+  leads       Int      @default(0)
+  coletadoEm  DateTime @default(now())
+
+  @@unique([postId, janela])
+}
+
+// O que a máquina aprendeu — do seu feedback ou da performance. Entra nos prompts.
+model Aprendizado {
+  id       String   @id @default(cuid())
+  origem   String // FEEDBACK | PERFORMANCE
+  texto    String
+  tags     String   @default("") // separadas por vírgula: hook, visual, cta, tema…
+  peso     Int      @default(1)
+  ativo    Boolean  @default(true)
+  postId   String?
+  post     Post?    @relation(fields: [postId], references: [id], onDelete: SetNull)
+  criadoEm DateTime @default(now())
+
+  @@index([ativo, criadoEm])
 }

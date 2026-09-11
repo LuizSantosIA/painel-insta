@@ -37,6 +37,7 @@ const FONTE_POR_DESTINO: { prefixo: string; fonte: FonteAtencao; acao: string }[
   { prefixo: "/negocio/clientes", fonte: "CLIENTE", acao: "Abrir cliente" },
   { prefixo: "/negocio/compromissos", fonte: "COMPROMISSO", acao: "Cumprir" },
   { prefixo: "/negocio/tarefas", fonte: "TAREFA", acao: "Concluir" },
+  { prefixo: "/maquina/engine", fonte: "MAQUINA", acao: "Aprovar" },
   { prefixo: "/maquina/conversas", fonte: "MAQUINA", acao: "Responder" },
   { prefixo: "/maquina/conteudo", fonte: "MAQUINA", acao: "Ver conteúdo" },
   { prefixo: "/maquina/automacoes", fonte: "MAQUINA", acao: "Ver problema" },

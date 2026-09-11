@@ -492,3 +492,71 @@ export async function syncInstagram(limit = 50): Promise<SyncResult> {
 
   return { fetched: media.length, upserted, errors, followers };
 }
+// ─── Publicação de carrossel (Content Publishing API) ────────────────────────
+//
+// Recuperado do autoposts antigo e isolado aqui. Fluxo da Meta em três passos:
+// um container por imagem (is_carousel_item) → esperar FINISHED → container
+// CAROUSEL com os filhos → media_publish. As URLs precisam ser públicas.
+
+interface IgApiResponse {
+  id?: string;
+  error?: { message?: string };
+}
+
+async function postMedia(userId: string, token: string, body: Record<string, unknown>): Promise<string> {
+  const res = await fetch(`${BASE}/${userId}/media`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...body, access_token: token }),
+  });
+  const data = (await res.json()) as IgApiResponse;
+  if (!data.id) throw new Error(data.error?.message ?? "Erro ao criar container de mídia");
+  return data.id;
+}
+
+async function waitFinished(containerId: string, token: string): Promise<void> {
+  for (let i = 0; i < 20; i++) {
+    const res = await fetch(`${BASE}/${containerId}?fields=status_code&access_token=${token}`);
+    const data = (await res.json()) as { status_code?: string };
+    if (data.status_code === "FINISHED") return;
+    if (data.status_code === "ERROR") throw new Error(`Container ${containerId} falhou no processamento`);
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  throw new Error("Timeout aguardando o Instagram processar as imagens");
+}
+
+/**
+ * Publica um carrossel e devolve o id da mídia publicada.
+ * Exige de 2 a 10 imagens em URL pública (o Blob resolve isso).
+ */
+export async function publishCarousel(imageUrls: string[], caption: string): Promise<string> {
+  const token = strip(process.env.IG_ACCESS_TOKEN);
+  const userId = strip(process.env.IG_USER_ID);
+  if (!token || !userId) throw new Error("Instagram não configurado (IG_ACCESS_TOKEN / IG_USER_ID)");
+  if (imageUrls.length < 2 || imageUrls.length > 10) {
+    throw new Error(`Carrossel precisa de 2 a 10 imagens (recebi ${imageUrls.length})`);
+  }
+
+  const filhos: string[] = [];
+  for (const url of imageUrls) {
+    const id = await postMedia(userId, token, { image_url: url, is_carousel_item: true });
+    await waitFinished(id, token);
+    filhos.push(id);
+  }
+
+  const carrossel = await postMedia(userId, token, {
+    media_type: "CAROUSEL",
+    children: filhos.join(","),
+    caption,
+  });
+  await waitFinished(carrossel, token);
+
+  const res = await fetch(`${BASE}/${userId}/media_publish`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ creation_id: carrossel, access_token: token }),
+  });
+  const data = (await res.json()) as IgApiResponse;
+  if (!data.id) throw new Error(data.error?.message ?? "Erro ao publicar o carrossel");
+  return data.id;
+}
