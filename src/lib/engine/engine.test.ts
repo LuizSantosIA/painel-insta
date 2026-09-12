@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { agentesForaDaTeia, LARGURA_TEIA, ALTURA_TEIA, LIGACOES_TEIA, ligacoesQuebradas, NOS_TEIA, vizinhos } from "./teia";
 import {
   AGENTES_DA_ETAPA,
   ETAPAS_PIPELINE,
@@ -238,5 +239,35 @@ describe("feedbackParaAprendizado", () => {
 
   it("descarta motivo vazio", () => {
     expect(feedbackParaAprendizado("  ", "POST")).toBeNull();
+  });
+});
+
+describe("teia dos agentes", () => {
+  it("todo agente do pipeline está na teia", () => {
+    expect(agentesForaDaTeia()).toEqual([]);
+  });
+
+  it("nenhuma ligação aponta para nó inexistente", () => {
+    expect(ligacoesQuebradas()).toEqual([]);
+  });
+
+  it("o fluxo principal é uma cadeia do Radar até a memória", () => {
+    const fluxo = LIGACOES_TEIA.filter((l) => l.tipo === "fluxo");
+    for (let i = 1; i < fluxo.length; i++) expect(fluxo[i].de).toBe(fluxo[i - 1].para);
+    expect(fluxo[0].de).toBe("RADAR");
+    expect(vizinhos("VOCE").saem.some((l) => l.para === "PUBLICADOR")).toBe(true);
+  });
+
+  it("nós cabem no canvas e não se sobrepõem", () => {
+    for (const n of NOS_TEIA) {
+      expect(n.x).toBeGreaterThan(0);
+      expect(n.x).toBeLessThan(LARGURA_TEIA);
+      expect(n.y).toBeGreaterThan(0);
+      expect(n.y).toBeLessThan(ALTURA_TEIA);
+    }
+    for (const a of NOS_TEIA) for (const b of NOS_TEIA) {
+      if (a.id === b.id) continue;
+      expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeGreaterThan(120);
+    }
   });
 });

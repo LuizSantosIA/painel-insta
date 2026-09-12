@@ -71,7 +71,10 @@ export default function AvancadoPage() {
 
       <header>
         <h1 className="text-[20px] font-semibold leading-tight tracking-tight">Área avançada</h1>
-        <p className="mt-0.5 text-[12px] text-muted">Agentes, execuções, prompts, fontes e aprendizados.</p>
+        <p className="mt-0.5 text-[12px] text-muted">
+          Execuções, prompts, fontes e aprendizados. Os agentes em si estão na{" "}
+          <Link href="/maquina/engine/agentes" className="text-foreground-2 underline-offset-2 hover:underline">teia</Link>.
+        </p>
       </header>
 
       <div className="flex gap-1.5">

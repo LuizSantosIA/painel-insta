@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { AlertCircle, Loader2, Play, Radar, Settings2 } from "lucide-react";
+import { AlertCircle, Loader2, Play, Radar, Settings2, Waypoints } from "lucide-react";
 import type { EngineOverview } from "@/app/api/maquina/engine/route";
 import { ETAPAS_EM_PRODUCAO } from "@/lib/engine/etapas";
 import { EmptyLine, Section, SectionHeader } from "@/components/negocio/panel";
@@ -134,7 +134,10 @@ export default function EnginePage() {
           <button className={btn} onClick={() => rodar("dia")} disabled={!!rodando} title="Estrategista seleciona + produção avança">
             {rodando === "dia" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />} Rodar o dia
           </button>
-          <Link href="/maquina/engine/avancado" className={btn} title="Agentes, execuções, prompts, fontes, aprendizados">
+          <Link href="/maquina/engine/agentes" className={btn} title="A teia dos 11 agentes">
+            <Waypoints className="h-3.5 w-3.5" /> Agentes
+          </Link>
+          <Link href="/maquina/engine/avancado" className={btn} title="Execuções, prompts, fontes, aprendizados">
             <Settings2 className="h-3.5 w-3.5" />
           </Link>
         </div>
