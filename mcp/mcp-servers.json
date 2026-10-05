@@ -1,0 +1,12 @@
+[
+  {
+    "name": "command-center",
+    "command": "node",
+    "args": ["C:/Users/Parceiro/projeto insta/mcp/command-center.mjs"],
+    "env": {
+      "COMMAND_CENTER_URL": "https://painel-insta.vercel.app",
+      "COMMAND_CENTER_TOKEN": "COLE_O_MESMO_VALOR_DE_MCP_API_TOKEN",
+      "VERCEL_BYPASS_TOKEN": "COLE_SE_A_PROTECAO_DE_DEPLOY_ESTIVER_LIGADA"
+    }
+  }
+]
