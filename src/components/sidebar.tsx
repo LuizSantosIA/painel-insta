@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   Sun, Briefcase, Cpu,
   Users, TrendingUp, CheckSquare, DollarSign, Activity, Flag, Gauge,
-  LayoutDashboard, Images, Plug, Sparkles,
+  LayoutDashboard, Images, Plug, Sparkles, MessagesSquare,
   CalendarDays, Zap, Camera, MessageCircle,
 } from "lucide-react";
 
@@ -31,6 +31,13 @@ const NAV: NavItem[] = [
     href: "/",
     label: "Hoje",
     icon: Sun,
+    exact: true,
+    sub: [],
+  },
+  {
+    href: "/assistente",
+    label: "Assistente",
+    icon: MessagesSquare,
     exact: true,
     sub: [],
   },
