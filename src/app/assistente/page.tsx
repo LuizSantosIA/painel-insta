@@ -42,6 +42,22 @@ const LABEL_FERRAMENTA: Record<string, string> = {
 
 const PROMPT = "luiz@command-center:~$";
 
+/**
+ * A rota responde erro como JSON; o transporte entrega o corpo cru na mensagem.
+ * Aqui ele vira uma frase — ninguém precisa ler chave e chave no terminal.
+ */
+function mensagemDeErro(e: Error): string {
+  const bruto = e.message?.trim();
+  if (!bruto) return "não consegui responder agora.";
+  try {
+    const j = JSON.parse(bruto) as { error?: string };
+    if (typeof j.error === "string" && j.error) return j.error;
+  } catch {
+    /* não era JSON — segue o texto como veio */
+  }
+  return bruto;
+}
+
 export default function AssistentePage() {
   const { messages, sendMessage, status, error, stop } = useChat({
     transport: new DefaultChatTransport({ api: "/api/assistente" }),
@@ -159,7 +175,7 @@ export default function AssistentePage() {
 
           {error && (
             <p className="mt-2 whitespace-pre-wrap break-words text-[#ff6b6b]">
-              erro: {error.message || "não consegui responder agora."}
+              erro: {mensagemDeErro(error)}
             </p>
           )}
 
