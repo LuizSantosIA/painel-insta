@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
+import { envAlgum, urlBase } from "@/lib/env";
 
 export async function GET() {
   // Usa o Instagram App ID (produto Instagram), não o Facebook App ID
-  const appId = process.env.IG_INSTAGRAM_APP_ID ?? process.env.IG_APP_ID!;
-  const base = (process.env.APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
+  const appId = envAlgum("IG_INSTAGRAM_APP_ID", "IG_APP_ID");
+  const base = urlBase();
   const redirectUri = `${base}/api/auth/callback`;
   const scope = [
     "instagram_business_basic",

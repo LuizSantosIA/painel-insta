@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { salvarCredenciais } from "@/lib/instagram-credenciais";
+import { envAlgum, urlBase } from "@/lib/env";
 
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code");
   const error = req.nextUrl.searchParams.get("error");
-  const base = (process.env.APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
+  const base = urlBase();
 
   if (error || !code) {
     return NextResponse.redirect(`${base}/integracao?error=cancelled`);
   }
 
-  const appId = process.env.IG_INSTAGRAM_APP_ID ?? process.env.IG_APP_ID!;
-  const appSecret = process.env.IG_INSTAGRAM_APP_SECRET ?? process.env.IG_APP_SECRET!;
+  const appId = envAlgum("IG_INSTAGRAM_APP_ID", "IG_APP_ID");
+  const appSecret = envAlgum("IG_INSTAGRAM_APP_SECRET", "IG_APP_SECRET");
   const redirectUri = `${base}/api/auth/callback`;
 
   const body = new URLSearchParams({
