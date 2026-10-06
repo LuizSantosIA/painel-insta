@@ -1,5 +1,11 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import {
+  tokenAtual,
+  integracaoConfigurada,
+  marcarTokenInvalido,
+  marcarTokenValido,
+} from "@/lib/instagram-credenciais";
 
 /**
  * Integração com a Meta Graph API (Instagram).
@@ -23,8 +29,8 @@ const strip = (v?: string) => (v ?? "").replace(/^﻿/, "").replace(/^\xEF\xBB\x
 const API_VERSION = strip(process.env.IG_API_VERSION) || "v21.0";
 const BASE = `https://graph.instagram.com/${API_VERSION}`;
 
-export function isConfigured(): boolean {
-  return Boolean(strip(process.env.IG_ACCESS_TOKEN) && strip(process.env.IG_USER_ID));
+export async function isConfigured(): Promise<boolean> {
+  return integracaoConfigurada();
 }
 
 interface RawMedia {
@@ -47,14 +53,26 @@ function normalizeMediaType(m: RawMedia): string {
   return m.media_type ?? "IMAGE";
 }
 
+/**
+ * Olha a resposta da Graph API e anota se o token foi recusado.
+ * Código 190 é "token inválido ou expirado" — o sinal que faltava para o
+ * painel perceber sozinho que as automações pararam.
+ */
+async function conferirToken(json: unknown, ok: boolean): Promise<void> {
+  const codigo = (json as { error?: { code?: number } } | null)?.error?.code;
+  if (codigo === 190) await marcarTokenInvalido();
+  else if (ok) await marcarTokenValido();
+}
+
 async function graphGet<T>(path: string, params: Record<string, string>): Promise<T> {
-  const token = strip(process.env.IG_ACCESS_TOKEN);
+  const { token } = await tokenAtual();
   const url = new URL(`${BASE}/${path}`);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
   url.searchParams.set("access_token", token);
 
   const res = await fetch(url.toString(), { cache: "no-store" });
   const json = await res.json();
+  await conferirToken(json, res.ok);
   if (!res.ok) {
     const msg = json?.error?.message ?? res.statusText;
     throw new Error(`Graph API: ${msg}`);
@@ -64,7 +82,7 @@ async function graphGet<T>(path: string, params: Record<string, string>): Promis
 
 /** Busca a página de mídias mais recentes da conta. */
 async function fetchMediaPage(limit: number): Promise<RawMedia[]> {
-  const userId = strip(process.env.IG_USER_ID);
+  const { userId } = await tokenAtual();
   const fields =
     "id,caption,media_type,media_product_type,permalink,media_url,thumbnail_url,timestamp,like_count,comments_count";
   const data = await graphGet<{ data: RawMedia[] }>(`${userId}/media`, {
@@ -108,7 +126,7 @@ async function fetchInsights(
 
 /** Busca seguidores atuais via API — retorna null se falhar. */
 export async function fetchFollowersCount(): Promise<number | null> {
-  if (!isConfigured()) return null;
+  if (!(await isConfigured())) return null;
   try {
     const data = await graphGet<{ followers_count?: number }>("me", {
       fields: "followers_count",
@@ -142,7 +160,7 @@ export async function fetchComments(mediaId: string): Promise<RawComment[]> {
 
 /** Responde a um comentário publicamente. */
 export async function replyToComment(commentId: string, message: string): Promise<string | null> {
-  const token = strip(process.env.IG_ACCESS_TOKEN);
+  const { token } = await tokenAtual();
   const url = new URL(`${BASE}/${commentId}/replies`);
   url.searchParams.set("access_token", token);
 
@@ -152,6 +170,7 @@ export async function replyToComment(commentId: string, message: string): Promis
     body: JSON.stringify({ message }),
   });
   const json = await res.json();
+  await conferirToken(json, res.ok);
   if (!res.ok) throw new Error(json?.error?.message ?? "Erro ao responder comentário");
   return (json as { id?: string }).id ?? null;
 }
@@ -159,8 +178,7 @@ export async function replyToComment(commentId: string, message: string): Promis
 /** Envia DM em resposta a um comentário usando o comment_id como destinatário.
  *  Não precisa de Page Token — usa só o IG token com instagram_manage_messages. */
 export async function sendDmToCommenter(commentId: string, message: string): Promise<void> {
-  const token = strip(process.env.IG_ACCESS_TOKEN);
-  const userId = strip(process.env.IG_USER_ID);
+  const { token, userId } = await tokenAtual();
   const res = await fetch(`${BASE}/${userId}/messages`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -171,6 +189,7 @@ export async function sendDmToCommenter(commentId: string, message: string): Pro
     }),
   });
   const json = await res.json();
+  await conferirToken(json, res.ok);
   if (!res.ok) throw new Error(json?.error?.message ?? "Erro ao enviar DM por comment_id");
 }
 
@@ -190,12 +209,12 @@ export async function sendDirectMessage(recipientId: string, message: string): P
       }),
     });
     const json = await res.json();
+    await conferirToken(json, res.ok);
     if (!res.ok) throw new Error(json?.error?.message ?? "Erro ao enviar DM via Página");
     return;
   }
 
-  const token = strip(process.env.IG_ACCESS_TOKEN);
-  const userId = strip(process.env.IG_USER_ID);
+  const { token, userId } = await tokenAtual();
   const res = await fetch(`${BASE}/${userId}/messages`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -206,6 +225,7 @@ export async function sendDirectMessage(recipientId: string, message: string): P
     }),
   });
   const json = await res.json();
+  await conferirToken(json, res.ok);
   if (!res.ok) throw new Error(json?.error?.message ?? "Erro ao enviar DM");
 }
 
@@ -251,14 +271,14 @@ export interface QuickReply {
 }
 
 async function postMessage(recipient: Record<string, string>, message: unknown): Promise<void> {
-  const token = strip(process.env.IG_ACCESS_TOKEN);
-  const userId = strip(process.env.IG_USER_ID);
+  const { token, userId } = await tokenAtual();
   const res = await fetch(`${BASE}/${userId}/messages`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ recipient, message, access_token: token }),
   });
   const json = await res.json();
+  await conferirToken(json, res.ok);
   if (!res.ok) throw new Error(json?.error?.message ?? "Erro ao enviar mensagem");
 }
 
@@ -404,9 +424,9 @@ export interface SyncResult {
 
 /** Sincroniza as últimas mídias da conta para o banco local. */
 export async function syncInstagram(limit = 50): Promise<SyncResult> {
-  if (!isConfigured()) {
+  if (!(await isConfigured())) {
     throw new Error(
-      "Integração não configurada. Defina IG_ACCESS_TOKEN e IG_USER_ID no .env."
+      "Instagram não conectado. Conecte a conta em /maquina/integracoes."
     );
   }
 
@@ -530,8 +550,7 @@ async function waitFinished(containerId: string, token: string): Promise<void> {
  * Exige de 2 a 10 imagens em URL pública (o Blob resolve isso).
  */
 export async function publishCarousel(imageUrls: string[], caption: string): Promise<string> {
-  const token = strip(process.env.IG_ACCESS_TOKEN);
-  const userId = strip(process.env.IG_USER_ID);
+  const { token, userId } = await tokenAtual();
   if (!token || !userId) throw new Error("Instagram não configurado (IG_ACCESS_TOKEN / IG_USER_ID)");
   if (imageUrls.length < 2 || imageUrls.length > 10) {
     throw new Error(`Carrossel precisa de 2 a 10 imagens (recebi ${imageUrls.length})`);

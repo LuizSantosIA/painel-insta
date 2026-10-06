@@ -10,7 +10,7 @@ function matchesRule(text: string, keywords: string): boolean {
 }
 
 export async function POST(req: NextRequest) {
-  if (!isConfigured()) {
+  if (!(await isConfigured())) {
     return NextResponse.json({ error: "Integração não configurada" }, { status: 400 });
   }
 

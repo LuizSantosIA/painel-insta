@@ -334,6 +334,13 @@ export interface DadosAlertasMaquina {
   instagramConectado: boolean;
   /** Automações ativas que nunca dispararam. */
   automacoesSemExecucao: number;
+  /**
+   * Dias até o token do Instagram expirar. null quando não há data conhecida
+   * (token antigo, só no .env) — nesse caso não dá para afirmar nada.
+   */
+  diasAteTokenExpirar?: number | null;
+  /** A Graph API recusou o token (erro 190) — morto mesmo sem data de validade. */
+  tokenRecusado?: boolean;
 }
 
 function plural(n: number, singular: string, pluralForma: string): string {
@@ -362,6 +369,27 @@ export function montarAlertasMaquina(d: DadosAlertasMaquina): AlertaMaquina[] {
       destino: "/maquina/integracoes",
       destinoLabel: "Integrações",
       peso: 100,
+    });
+  }
+
+  // O token dura 60 dias e já expirou em silêncio uma vez, derrubando as
+  // respostas automáticas sem nenhum aviso. Agora ele cobra antes da hora.
+  const diasToken = d.diasAteTokenExpirar;
+  const recusado = d.tokenRecusado === true;
+  if (d.instagramConectado && (recusado || (typeof diasToken === "number" && diasToken <= 7))) {
+    const expirado = recusado || (typeof diasToken === "number" && diasToken <= 0);
+    alertas.push({
+      id: "token-instagram",
+      titulo: expirado
+        ? "Token do Instagram expirou"
+        : `Token do Instagram expira em ${plural(diasToken as number, "dia", "dias")}`,
+      detalhe: expirado
+        ? "nenhuma automação consegue responder; reconecte a conta"
+        : "reconecte antes de vencer para as automações não pararem",
+      severidade: expirado ? "URGENTE" : "ATENCAO",
+      destino: "/maquina/integracoes",
+      destinoLabel: "Integrações",
+      peso: expirado ? 99 : 20,
     });
   }
 

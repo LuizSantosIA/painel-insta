@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
+import { salvarCredenciais } from "@/lib/instagram-credenciais";
 
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code");
@@ -49,18 +48,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(`${base}/integracao?error=${msg}`);
   }
 
-  // Salva no .env
-  const envPath = path.join(process.cwd(), ".env");
-  let envContent = fs.readFileSync(envPath, "utf-8");
-  envContent = envContent.replace(
-    /^IG_ACCESS_TOKEN=.*/m,
-    `IG_ACCESS_TOKEN="${longData.access_token}"`
-  );
-  fs.writeFileSync(envPath, envContent);
-  process.env.IG_ACCESS_TOKEN = longData.access_token;
-
-  // Ativa o recebimento de webhooks para este usuário
-  const igUserId = tokenData.user_id ?? "";
+  // Salva no banco. Antes isto escrevia no .env — que na Vercel é efêmero e
+  // somente leitura, então a reconexão em produção nunca persistia.
+  const igUserId = String(tokenData.user_id ?? "");
+  await salvarCredenciais({
+    token: longData.access_token,
+    userId: igUserId || undefined,
+    expiraEmSegundos: longData.expires_in,
+  });
   if (igUserId) {
     await fetch(
       `https://graph.instagram.com/v21.0/${igUserId}/subscribed_apps?subscribed_fields=comments,messages&access_token=${longData.access_token}`,

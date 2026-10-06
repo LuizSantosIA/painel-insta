@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
+import { salvarCredenciais } from "@/lib/instagram-credenciais";
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
@@ -32,15 +31,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const envPath = path.join(process.cwd(), ".env");
-  let envContent = fs.readFileSync(envPath, "utf-8");
-  envContent = envContent.replace(
-    /^IG_ACCESS_TOKEN=.*/m,
-    `IG_ACCESS_TOKEN="${data.access_token}"`
-  );
-  fs.writeFileSync(envPath, envContent);
-  process.env.IG_ACCESS_TOKEN = data.access_token;
+  await salvarCredenciais({ token: data.access_token, expiraEmSegundos: data.expires_in });
 
-  const days = Math.round((data.expires_in ?? 0) / 86400);
-  return NextResponse.json({ days, token: data.access_token });
+  const dias = Math.round((data.expires_in ?? 0) / 86400);
+  return NextResponse.json({ ok: true, expiraEmDias: dias });
 }

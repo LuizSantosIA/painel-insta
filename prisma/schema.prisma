@@ -378,6 +378,18 @@ model Config {
   // Máquina de conteúdo. MANUAL | COPILOTO | AUTOPILOT — só AUTOPILOT publica sozinho.
   modoMaquina      String   @default("COPILOTO")
   tetoExecucoesDia Int      @default(60) // execuções de agente por dia antes de a máquina parar
+
+  // ─── Instagram ───
+  // O token mora aqui, não no .env: na Vercel o disco é efêmero, então
+  // reconectar pelo painel só persiste se o destino for o banco. O cron de
+  // renovação atualiza estes campos antes dos 60 dias.
+  igAccessToken     String?
+  igUserId          String?
+  igTokenExpiraEm   DateTime?
+  igTokenRenovadoEm DateTime?
+  // Quando a Graph API recusou o token (erro 190). Zera no primeiro sucesso.
+  // É o que faz um token morto aparecer no Hoje mesmo sem data de validade.
+  igTokenInvalidoEm DateTime?
   atualizadoEm     DateTime @updatedAt
 }
 

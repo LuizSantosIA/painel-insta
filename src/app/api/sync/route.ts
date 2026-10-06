@@ -2,11 +2,11 @@ import { NextResponse } from "next/server";
 import { isConfigured, syncInstagram } from "@/lib/instagram";
 
 export async function POST() {
-  if (!isConfigured()) {
+  if (!(await isConfigured())) {
     return NextResponse.json(
       {
         error:
-          "Integração não configurada. Defina IG_ACCESS_TOKEN e IG_USER_ID no arquivo .env e reinicie o servidor.",
+          "Instagram não conectado. Conecte a conta em /maquina/integracoes.",
       },
       { status: 400 }
     );
@@ -23,6 +23,6 @@ export async function POST() {
   }
 }
 
-export function GET() {
-  return NextResponse.json({ configured: isConfigured() });
+export async function GET() {
+  return NextResponse.json({ configured: await isConfigured() });
 }

@@ -104,6 +104,8 @@ export async function carregarBriefing(agora = new Date()): Promise<BriefingDoDi
     diasSemSincronizar: maquina.meta.diasSemSincronizar,
     instagramConectado: maquina.meta.instagramConectado,
     automacoesSemExecucao: maquina.meta.automacoesSemExecucao,
+    diasAteTokenExpirar: maquina.meta.diasAteTokenExpirar,
+    tokenRecusado: maquina.meta.tokenRecusado,
   });
 
   return montarBriefing({

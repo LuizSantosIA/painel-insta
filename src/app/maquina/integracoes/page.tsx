@@ -46,7 +46,7 @@ const PASSOS = [
 ];
 
 export default async function IntegracoesPage() {
-  const configurado = isConfigured();
+  const configurado = await isConfigured();
   const fbConectada = Boolean(process.env.FB_PAGE_ID && process.env.FB_PAGE_ACCESS_TOKEN);
 
   return (

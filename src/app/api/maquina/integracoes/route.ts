@@ -32,7 +32,7 @@ export interface IntegracoesResposta {
 }
 
 export async function GET() {
-  const configurado = isConfigured();
+  const configurado = await isConfigured();
 
   const [ultimoPost, totalPosts, ultimoSnapshot, conversas, ultimaConversa, comentarios, ultimoLog] =
     await Promise.all([

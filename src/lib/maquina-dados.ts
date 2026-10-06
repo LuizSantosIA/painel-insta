@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { isConfigured } from "@/lib/instagram";
+import { statusToken } from "@/lib/instagram-credenciais";
 import { engagement, engagementRate, type PostLike } from "@/lib/metrics";
 import {
   atribuicaoVazia,
@@ -137,6 +138,10 @@ export interface MetaMaquina {
   diasSemSincronizar: number | null;
   automacoesAtivas: number;
   automacoesSemExecucao: number;
+  /** Dias até o token do Instagram expirar; null se a data não for conhecida. */
+  diasAteTokenExpirar: number | null;
+  /** A Graph API recusou o token: as automações não conseguem responder. */
+  tokenRecusado: boolean;
 }
 
 export interface DadosMaquina {
@@ -495,8 +500,12 @@ export async function carregarMaquina(agora = new Date()): Promise<DadosMaquina>
     aguardandoResposta: aguardando,
   };
 
+  const statusDoToken = await statusToken();
+
   const meta: MetaMaquina = {
-    instagramConectado: isConfigured(),
+    instagramConectado: await isConfigured(),
+    diasAteTokenExpirar: statusDoToken.diasRestantes,
+    tokenRecusado: statusDoToken.recusadoDesde !== null,
     facebookPageConectada: Boolean(process.env.FB_PAGE_ID && process.env.FB_PAGE_ACCESS_TOKEN),
     ultimaPublicacao,
     ultimaSincronizacaoConversas: ultimaSync?.toISOString() ?? null,
