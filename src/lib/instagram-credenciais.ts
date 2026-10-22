@@ -4,11 +4,20 @@ import {
   DIAS_TOKEN,
   diasAte,
   expirado,
+  montarIdentidade,
   precisaAlertar,
   precisaRenovar,
+  type IdentidadeConta,
 } from "@/lib/instagram-token";
 
-export { DIAS_TOKEN, DIAS_PARA_RENOVAR, DIAS_PARA_ALERTAR, diasAte } from "@/lib/instagram-token";
+export {
+  DIAS_TOKEN,
+  DIAS_PARA_RENOVAR,
+  DIAS_PARA_ALERTAR,
+  diasAte,
+  ehDaPropriaConta,
+  type IdentidadeConta,
+} from "@/lib/instagram-token";
 
 /**
  * De onde vem o token do Instagram.
@@ -84,6 +93,8 @@ export async function integracaoConfigurada(): Promise<boolean> {
 export async function salvarCredenciais(dados: {
   token: string;
   userId?: string;
+  /** @ da conta, para o webhook reconhecer os comentários dela mesma */
+  username?: string;
   /** segundos até expirar, como o Instagram devolve */
   expiraEmSegundos?: number;
 }): Promise<void> {
@@ -97,12 +108,14 @@ export async function salvarCredenciais(dados: {
       id: "singleton",
       igAccessToken: dados.token,
       igUserId: dados.userId ?? null,
+      igUsername: dados.username ?? null,
       igTokenExpiraEm: expiraEm,
       igTokenRenovadoEm: new Date(),
     },
     update: {
       igAccessToken: dados.token,
       ...(dados.userId ? { igUserId: dados.userId } : {}),
+      ...(dados.username ? { igUsername: dados.username } : {}),
       igTokenExpiraEm: expiraEm,
       igTokenRenovadoEm: new Date(),
     },
@@ -230,4 +243,19 @@ export async function renovarToken(forcar = false): Promise<ResultadoRenovacao> 
   });
 
   return { ok: true, renovado: true, diasRestantes: Math.round((dados.expires_in ?? DIAS_TOKEN * 86_400) / 86_400) };
+}
+
+/**
+ * Identidade da conta para o webhook, lida do banco.
+ * A régua de comparação é pura e vive em lib/instagram-token.
+ */
+export async function identidadeDaConta(): Promise<IdentidadeConta> {
+  const cfg = await prisma.config
+    .findUnique({ where: { id: "singleton" }, select: { igUserId: true, igUsername: true } })
+    .catch(() => null);
+
+  return montarIdentidade({
+    ids: [cfg?.igUserId, process.env.IG_USER_ID, process.env.IG_BUSINESS_ID],
+    username: cfg?.igUsername,
+  });
 }

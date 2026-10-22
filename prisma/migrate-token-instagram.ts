@@ -27,6 +27,7 @@ const COLUNAS = [
   `ALTER TABLE "Config" ADD COLUMN "igTokenExpiraEm" DATETIME`,
   `ALTER TABLE "Config" ADD COLUMN "igTokenRenovadoEm" DATETIME`,
   `ALTER TABLE "Config" ADD COLUMN "igTokenInvalidoEm" DATETIME`,
+  `ALTER TABLE "Config" ADD COLUMN "igUsername" TEXT`,
 ];
 
 async function run() {

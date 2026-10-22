@@ -390,6 +390,9 @@ model Config {
   // Quando a Graph API recusou o token (erro 190). Zera no primeiro sucesso.
   // É o que faz um token morto aparecer no Hoje mesmo sem data de validade.
   igTokenInvalidoEm DateTime?
+  // @ da conta. Serve para o webhook reconhecer um comentário feito por ela
+  // mesma e não responder a si próprio.
+  igUsername        String?
   atualizadoEm     DateTime @updatedAt
 }
 

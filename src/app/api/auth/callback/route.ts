@@ -52,9 +52,19 @@ export async function GET(req: NextRequest) {
   // Salva no banco. Antes isto escrevia no .env — que na Vercel é efêmero e
   // somente leitura, então a reconexão em produção nunca persistia.
   const igUserId = String(tokenData.user_id ?? "");
+
+  // O @ da conta entra junto: é com ele que o webhook reconhece um comentário
+  // feito por ela mesma e evita responder ao próprio texto.
+  const eu = await fetch(
+    `https://graph.instagram.com/v23.0/me?fields=id,username&access_token=${longData.access_token}`
+  )
+    .then((r) => r.json())
+    .catch(() => null);
+
   await salvarCredenciais({
     token: longData.access_token,
-    userId: igUserId || undefined,
+    userId: igUserId || (eu?.id ? String(eu.id) : undefined),
+    username: typeof eu?.username === "string" ? eu.username : undefined,
     expiraEmSegundos: longData.expires_in,
   });
   if (igUserId) {

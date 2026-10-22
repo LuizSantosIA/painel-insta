@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import type { AutoRule } from "@/generated/prisma/client";
 import { replyToComment, sendDmToCommenter, sendDirectMessage } from "@/lib/instagram";
+import { ehDaPropriaConta, identidadeDaConta } from "@/lib/instagram-credenciais";
 import {
   gateConfigurado,
   gatePendente,
@@ -120,6 +121,10 @@ async function processWebhook(body: WebhookBody) {
 
 // ─── Comentários ─────────────────────────────────────────────────────────────
 
+/** Quantas vezes uma mesma regra pode responder no mesmo post dentro da janela. */
+const LIMITE_POR_JANELA = 8;
+const JANELA_FREIO_MS = 10 * 60 * 1000;
+
 async function processarComentario(change: CommentChange) {
   const value = change.value;
   const commentId = value.id ?? "";
@@ -144,6 +149,18 @@ async function processarComentario(change: CommentChange) {
     return;
   }
 
+  // A conta não responde a si mesma.
+  //
+  // Toda resposta automática é um comentário novo, com id novo — a idempotência
+  // acima não a pega. Em 22/10/2026 uma regra com a palavra-chave "EDIÇÃO" tinha
+  // como resposta "Mandei o passo a passo do seu estúdio de edição...": a própria
+  // resposta casava com a regra e a automação respondeu a si mesma 13 vezes.
+  const identidade = await identidadeDaConta();
+  if (ehDaPropriaConta(identidade, { id: senderId, username })) {
+    console.log("[webhook] Comentário da própria conta, ignorando:", commentId);
+    return;
+  }
+
   const rules = await prisma.autoRule.findMany({ where: { isActive: true } });
   const rule = rules.find(
     (r) =>
@@ -156,6 +173,21 @@ async function processarComentario(change: CommentChange) {
     return;
   }
   console.log("[webhook] Regra ativada:", rule.id, rule.name);
+
+  // Freio de segurança: nenhuma regra responde mais que LIMITE_POR_JANELA vezes
+  // no mesmo post dentro da janela. Um comentarista real nunca chega perto
+  // disso; um laço chega em segundos. Prefere-se perder uma resposta legítima a
+  // inundar o post — e o excesso fica no log para você ver o que houve.
+  const desde = new Date(Date.now() - JANELA_FREIO_MS);
+  const recentes = await prisma.commentLog.count({
+    where: { ruleId: rule.id, igPostId: mediaId, createdAt: { gte: desde } },
+  });
+  if (recentes >= LIMITE_POR_JANELA) {
+    console.error(
+      `[webhook] FREIO: regra ${rule.id} ja disparou ${recentes}x neste post em ${JANELA_FREIO_MS / 60000}min. Ignorando ${commentId}.`
+    );
+    return;
+  }
 
   let commentReplied = false;
   let dmSentOk = false;

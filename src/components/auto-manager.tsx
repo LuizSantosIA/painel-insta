@@ -6,6 +6,7 @@ import {
   ChevronDown, Loader2, AlertCircle, CheckCircle2,
   ToggleLeft, ToggleRight, Plus, X, Check, ChevronRight, Lock, Link2,
 } from "lucide-react";
+import { avaliarLoop } from "@/lib/automacao-loop";
 
 interface Rule {
   id: string;
@@ -142,6 +143,10 @@ export function AutoManager({ posts }: { posts: Post[] }) {
     setForm(EMPTY_FORM);
     setFormError(null);
   }
+
+  // A regra se alimenta? O texto da resposta pública vira um comentário novo no
+  // mesmo post; se ele contiver a palavra-chave, a regra reage ao próprio texto.
+  const avisoLoop = avaliarLoop({ keywords: form.keywords, replyText: form.replyText });
 
   async function saveRule() {
     if (!form.keywords.trim()) { setFormError("Preencha ao menos uma palavra-chave."); return; }
@@ -561,6 +566,12 @@ export function AutoManager({ posts }: { posts: Post[] }) {
                   rows={3}
                   className="w-full resize-none rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm placeholder:text-muted outline-none focus:border-brand"
                 />
+                {avisoLoop.risco && (
+                  <p className="flex items-start gap-1.5 pt-0.5 text-xs text-[color:var(--warning)]">
+                    <AlertCircle className="mt-[1px] h-3.5 w-3.5 shrink-0" />
+                    {avisoLoop.mensagem}
+                  </p>
+                )}
               </div>
 
               {/* DM toggle */}

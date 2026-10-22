@@ -31,3 +31,44 @@ export function precisaRenovar(dias: number | null): boolean {
 export function precisaAlertar(dias: number | null): boolean {
   return dias !== null && dias <= DIAS_PARA_ALERTAR;
 }
+
+/**
+ * Quem é "a própria conta", para o webhook não responder a si mesma.
+ *
+ * A mesma conta aparece com DOIS ids diferentes: o do Instagram Login, que as
+ * chamadas usam, e o IG User ID clássico, que é o que vem no webhook. Os dois
+ * contam — e o @ entra como terceira trava, caso a Meta mude os ids de novo.
+ *
+ * Em 22/10/2026 a falta disso virou um laço: a resposta automática continha a
+ * palavra-chave da própria regra, e a automação respondeu a si mesma 13 vezes.
+ */
+export interface IdentidadeConta {
+  ids: Set<string>;
+  username: string;
+}
+
+function limparId(v?: string | null): string {
+  return (v ?? "").replace(/^\ufeff/, "").trim();
+}
+
+export function montarIdentidade(dados: {
+  ids: (string | null | undefined)[];
+  username?: string | null;
+}): IdentidadeConta {
+  return {
+    ids: new Set(dados.ids.map(limparId).filter(Boolean)),
+    username: (dados.username ?? "").replace(/^@/, "").trim().toLowerCase(),
+  };
+}
+
+/** O comentário (ou mensagem) foi escrito pela própria conta? */
+export function ehDaPropriaConta(
+  identidade: IdentidadeConta,
+  autor: { id?: string | null; username?: string | null }
+): boolean {
+  const id = limparId(autor.id);
+  if (id && identidade.ids.has(id)) return true;
+
+  const user = (autor.username ?? "").replace(/^@/, "").trim().toLowerCase();
+  return Boolean(user && identidade.username && user === identidade.username);
+}
