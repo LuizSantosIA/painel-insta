@@ -11,6 +11,7 @@ import {
   ruleIdDoPayload,
   textoEntrega,
   textoPedido,
+  decidirAberturaGate,
   type RegraGate,
 } from "./follow-gate-core";
 
@@ -123,5 +124,19 @@ describe("normalizar", () => {
 
   it("ignora acentos", () => {
     expect(normalizar("Já Segui")).toBe("ja segui");
+  });
+});
+
+describe("decidirAberturaGate", () => {
+  it("quem já segue recebe o material direto, sem botão", () => {
+    expect(decidirAberturaGate(true)).toBe("ENTREGAR_DIRETO");
+  });
+
+  it("quem não segue passa pelo pedido", () => {
+    expect(decidirAberturaGate(false)).toBe("PEDIR_FOLLOW");
+  });
+
+  it("sem resposta da Meta (erro 230) a trava continua de pé", () => {
+    expect(decidirAberturaGate(null)).toBe("PEDIR_FOLLOW");
   });
 });

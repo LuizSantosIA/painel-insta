@@ -8,6 +8,7 @@ import {
   sendUrlButtons,
   sendDmToCommenter,
   sendDirectMessage,
+  sendUrlButtonsToCommenter,
 } from "@/lib/instagram";
 import {
   DESISTIR_PADRAO,
@@ -18,6 +19,7 @@ import {
   rotuloLink,
   textoEntrega,
   textoPedido,
+  decidirAberturaGate,
 } from "@/lib/follow-gate-core";
 
 /**
@@ -106,6 +108,27 @@ export async function iniciarGatePorComentario(
   if (!gateConfigurado(rule)) return "REGRA_INVALIDA";
 
   const rotulo = rotuloBotao(rule);
+
+  // Quem já segue não precisa do botão. A Meta só deixa consultar o follow de
+  // quem já abriu conversa com a conta (fora isso devolve erro 230, "user
+  // consent is required"), e isFollower traduz qualquer recusa em null — então
+  // na dúvida o fluxo segue pedindo, e a trava nunca se abre por engano.
+  if (igsid) {
+    const segue = await isFollower(igsid);
+    if (decidirAberturaGate(segue) === "ENTREGAR_DIRETO") {
+      try {
+        await sendUrlButtonsToCommenter(commentId, textoEntrega(rule), [
+          { title: rotuloLink(rule), url: rule.linkLiberado.trim() },
+        ]);
+        await registrarGate(rule.id, igsid, { username, origem: "COMENTARIO", postId, entregue: true });
+        console.log("[gate] ja segue, link entregue direto:", igsid);
+        return "ENTREGUE";
+      } catch (e) {
+        // Entrega direta falhou: cai no fluxo normal, que ainda consegue resolver.
+        console.warn("[gate] entrega direta falhou, pedindo follow:", (e as Error).message);
+      }
+    }
+  }
 
   try {
     await sendPostbackButtonsToCommenter(commentId, textoPedido(rule), [

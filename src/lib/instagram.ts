@@ -307,29 +307,50 @@ export interface UrlButton {
   url: string;
 }
 
+/** O corpo do template de botão, igual para link e para postback. */
+function templateBotao(text: string, buttons: Record<string, string>[]) {
+  return {
+    attachment: {
+      type: "template",
+      payload: {
+        template_type: "button",
+        text: text.slice(0, 640),
+        buttons: buttons.slice(0, 3),
+      },
+    },
+  };
+}
+
+function botoesDeLink(buttons: UrlButton[]) {
+  return buttons.map((b) => ({
+    type: "web_url",
+    title: b.title.slice(0, QUICK_REPLY_MAX),
+    url: b.url,
+  }));
+}
+
 /** Template de botão: texto + até 3 botões que abrem uma URL no navegador in-app. */
 export async function sendUrlButtons(
   recipientId: string,
   text: string,
   buttons: UrlButton[]
 ): Promise<void> {
-  await postMessage(
-    { id: recipientId },
-    {
-      attachment: {
-        type: "template",
-        payload: {
-          template_type: "button",
-          text: text.slice(0, 640),
-          buttons: buttons.slice(0, 3).map((b) => ({
-            type: "web_url",
-            title: b.title.slice(0, QUICK_REPLY_MAX),
-            url: b.url,
-          })),
-        },
-      },
-    }
-  );
+  await postMessage({ id: recipientId }, templateBotao(text, botoesDeLink(buttons)));
+}
+
+/**
+ * O mesmo botão de link, endereçado a um comentário (private reply).
+ *
+ * É o que permite entregar o material direto a quem já segue, sem passar pelo
+ * botão "Seguindo" — quando a Meta deixa consultar o follow, o que só vale
+ * para quem já tem conversa aberta com a conta.
+ */
+export async function sendUrlButtonsToCommenter(
+  commentId: string,
+  text: string,
+  buttons: UrlButton[]
+): Promise<void> {
+  await postMessage({ comment_id: commentId }, templateBotao(text, botoesDeLink(buttons)));
 }
 
 export interface PostbackButton {

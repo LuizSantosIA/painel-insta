@@ -72,3 +72,18 @@ export function decidirAcaoGate(segue: boolean | null, tentativas: number): Acao
   if (tentativas >= MAX_TENTATIVAS) return "DESISTIR";
   return "REPETIR";
 }
+
+export type AberturaGate = "ENTREGAR_DIRETO" | "PEDIR_FOLLOW";
+
+/**
+ * Como abrir a trava: já entrega o material ou pede o follow antes?
+ *
+ * Só pula o pedido com certeza de que a pessoa segue. `null` é o que a Meta
+ * devolve quando não autoriza a consulta — erro 230, "user consent is
+ * required" —, o que acontece sempre que a pessoa nunca abriu conversa com a
+ * conta. Na dúvida, pede: entregar o link a quem não segue esvazia a trava,
+ * enquanto pedir a quem já segue custa um toque a mais.
+ */
+export function decidirAberturaGate(segue: boolean | null): AberturaGate {
+  return segue === true ? "ENTREGAR_DIRETO" : "PEDIR_FOLLOW";
+}

@@ -205,7 +205,9 @@ async function processarComentario(change: CommentChange) {
   if (gateConfigurado(rule)) {
     // Trava de seguidor: em vez do dmText, manda o pedido de follow com botão.
     const resultado = await iniciarGatePorComentario(rule, commentId, senderId, username, mediaId);
-    dmSentOk = resultado === "PEDIDO_ENVIADO";
+    // ENTREGUE acontece quando a pessoa já segue e recebe o link direto,
+    // sem passar pelo botão. Conta como sucesso igual ao pedido enviado.
+    dmSentOk = resultado === "PEDIDO_ENVIADO" || resultado === "ENTREGUE";
     console.log("[webhook] Gate por comentário:", resultado);
   } else if (rule.sendDm && rule.dmText.trim()) {
     try {
