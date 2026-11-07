@@ -15,6 +15,17 @@ export const config: VercelConfig = {
       path: "/api/instagram/token",
       schedule: "0 9 * * *",
     },
+    {
+      // 05:00 UTC = 02:00 em Brasília. De madrugada o Apify responde mais
+      // rápido e o resultado está pronto quando você abre o painel.
+      path: "/api/radar/rodar",
+      schedule: "0 5 * * *",
+    },
+    {
+      // Rede de segurança: fecha rodadas que ficaram penduradas sem o webhook.
+      path: "/api/radar/coletar",
+      schedule: "30 5,6 * * *",
+    },
   ],
 };
 

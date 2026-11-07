@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   Sun, Briefcase, Cpu,
   Users, TrendingUp, CheckSquare, DollarSign, Activity, Flag, Gauge,
-  LayoutDashboard, Images, Plug, Sparkles, MessagesSquare,
+  LayoutDashboard, Images, Plug, Sparkles, MessagesSquare, Crosshair,
   CalendarDays, Zap, Camera, MessageCircle,
 } from "lucide-react";
 
@@ -48,6 +48,7 @@ const NAV: NavItem[] = [
     sub: [
       { href: "/negocio",              label: "Visão geral",  icon: Gauge,       exact: true },
       { href: "/negocio/clientes",     label: "Clientes",     icon: Users,       grupo: "Relacionamento" },
+      { href: "/negocio/radar",        label: "Prospecção",   icon: Crosshair,   grupo: "Relacionamento" },
       { href: "/negocio/pipeline",     label: "Pipeline",     icon: TrendingUp,  grupo: "Relacionamento" },
       { href: "/negocio/saude",        label: "Saúde",        icon: Activity,    grupo: "Relacionamento" },
       { href: "/negocio/compromissos", label: "Compromissos", icon: Flag,        grupo: "Operação" },

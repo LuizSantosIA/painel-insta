@@ -270,6 +270,8 @@ model Lead {
   // Receitas geradas ao fechar esta oportunidade. A existência de qualquer uma
   // delas é o que impede o fechamento de gerar receita duas vezes.
   receitas              Receita[]
+  /// De onde o lead veio, quando nasceu de uma prospecção do radar.
+  prospect              RadarProspect?
 
   @@index([estagio, proximaAcaoEm])
   @@index([clienteId])
@@ -373,11 +375,11 @@ model Despesa {
 
 // Configurações globais — singleton (id = "singleton")
 model Config {
-  id               String   @id @default("singleton")
-  saldoCaixa       Int      @default(0) // centavos — informado manualmente
+  id               String @id @default("singleton")
+  saldoCaixa       Int    @default(0) // centavos — informado manualmente
   // Máquina de conteúdo. MANUAL | COPILOTO | AUTOPILOT — só AUTOPILOT publica sozinho.
-  modoMaquina      String   @default("COPILOTO")
-  tetoExecucoesDia Int      @default(60) // execuções de agente por dia antes de a máquina parar
+  modoMaquina      String @default("COPILOTO")
+  tetoExecucoesDia Int    @default(60) // execuções de agente por dia antes de a máquina parar
 
   // ─── Instagram ───
   // O token mora aqui, não no .env: na Vercel o disco é efêmero, então
@@ -393,7 +395,7 @@ model Config {
   // @ da conta. Serve para o webhook reconhecer um comentário feito por ela
   // mesma e não responder a si próprio.
   igUsername        String?
-  atualizadoEm     DateTime @updatedAt
+  atualizadoEm      DateTime  @updatedAt
 }
 
 // ─── Instagram DMs ───────────────────────────────────────────────────────────
@@ -554,4 +556,165 @@ model Aprendizado {
   criadoEm DateTime @default(now())
 
   @@index([ativo, criadoEm])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Radar de prospecção
+//
+// Um RadarProspect NÃO é um Lead. É uma empresa encontrada em fonte pública que
+// ainda não foi contatada. Só quando ela demonstra interesse nasce um Lead no
+// pipeline, vinculado aqui. Misturar os dois encheria o funil de empresas frias
+// e estragaria as métricas de conversão.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model RadarProspect {
+  id      String @id @default(cuid())
+  placeId String @unique // id do Google Maps — a chave natural da empresa
+
+  nome     String
+  endereco String?
+  bairro   String?
+  cidade   String
+  uf       String  @default("DF")
+
+  // Contato. telefoneE164 é único: o mesmo número não entra duas vezes nem com
+  // place_id diferente (acontece quando a empresa tem duas fichas no Maps).
+  telefone     String?
+  telefoneE164 String? @unique
+  tipoTelefone String  @default("SEM") // CELULAR | FIXO | SEM
+  site         String?
+  instagram    String?
+  facebook     String?
+  whatsapp     String? // E.164 achado no site ou no Instagram, quando o do Maps é fixo
+
+  // Google Maps
+  notaMaps        Float?
+  totalAvaliacoes Int     @default(0)
+  categorias      String  @default("") // separadas por vírgula
+  horario         String? // JSON cru do Maps
+  avaliacoesJson  String? // até 10 avaliações recentes, cruas — insumo da IA
+
+  vertical    String // REVENDA | CLINICA | IMOBILIARIA (configurável em RadarAlvo)
+  cidadeBusca String // a cidade da busca, que nem sempre é a do endereço
+
+  // Sinal de anúncio (fase 2)
+  anuncioStatus       String    @default("NAO_VERIFICADO") // SIM | NAO | PROVAVEL | NAO_VERIFICADO
+  anuncioQtd          Int       @default(0)
+  anuncioMaisAntigoEm DateTime?
+
+  // Leitura das avaliações pela IA (fase 2)
+  doresJson          String? // JSON: dores percebidas, só o que as avaliações sustentam
+  sinaisOperacaoJson String? // JSON: várias unidades, venda para fora, pré-vendedor…
+  resumoIa           String?
+
+  // Score (fase 2)
+  score          Int     @default(0)
+  scoreBreakdown String? // JSON com a quebra — o score precisa ser explicável
+
+  // Mensagens (fase 3)
+  msg1               String? // saudação fixa; a única que vai no link wa.me
+  msg2               String? // personalizada, só depois que a pessoa responder
+  msgFollowup        String?
+  mensagensGeradasEm DateTime?
+
+  // NOVO | ENVIADO | RESPONDEU | NAO_RESPONSAVEL | INTERESSADO | REUNIAO | SEM_INTERESSE | OPT_OUT
+  status          String    @default("NOVO")
+  enviadoEm       DateTime?
+  respondidoEm    DateTime?
+  followupVenceEm DateTime?
+
+  // A ponte com o pipeline: preenchida ao virar INTERESSADO ou REUNIAO.
+  leadId String? @unique
+  lead   Lead?   @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  execucaoId String?
+  execucao   RadarExecucao? @relation(fields: [execucaoId], references: [id], onDelete: SetNull)
+
+  contatos RadarContato[]
+
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  @@index([status, score])
+  @@index([vertical, cidade])
+  @@index([execucaoId])
+}
+
+/// Histórico de contato do prospect. Interacao não serve: exige clienteId.
+model RadarContato {
+  id         String        @id @default(cuid())
+  prospectId String
+  prospect   RadarProspect @relation(fields: [prospectId], references: [id], onDelete: Cascade)
+  tipo       String // WHATSAPP | LIGACAO | DM | EMAIL | NOTA | MUDANCA_STATUS
+  nota       String        @default("")
+  ocorreuEm  DateTime      @default(now())
+
+  @@index([prospectId, ocorreuEm])
+}
+
+/// Bloqueio permanente. Checado antes de qualquer prospect entrar na lista.
+model RadarBloqueio {
+  id       String   @id @default(cuid())
+  chave    String   @unique // telefone E.164 ou place_id
+  tipo     String // OPT_OUT | MANUAL
+  nome     String   @default("")
+  motivo   String   @default("")
+  criadoEm DateTime @default(now())
+}
+
+/// Uma rodada do radar. Guarda custo e contagem para a tela de métricas.
+model RadarExecucao {
+  id          String    @id @default(cuid())
+  iniciadoEm  DateTime  @default(now())
+  terminadoEm DateTime?
+  status      String    @default("RODANDO") // RODANDO | OK | ERRO | TETO_ESTOURADO
+  origem      String    @default("CRON") // CRON | MANUAL
+
+  apifyRunId     String?
+  apifyDatasetId String?
+  encontrados    Int     @default(0)
+  novos          Int     @default(0)
+  descartados    Int     @default(0)
+  descartesJson  String? // quantos por motivo
+  pontuados      Int     @default(0)
+  comMensagem    Int     @default(0)
+
+  custoApifyCentavos Int     @default(0)
+  custoIaCentavos    Int     @default(0)
+  erro               String?
+
+  prospects RadarProspect[]
+
+  @@index([iniciadoEm])
+  @@index([status])
+}
+
+/// Vertical × cidade que o radar varre. Desligar aqui tira da próxima rodada.
+model RadarAlvo {
+  id           String   @id @default(cuid())
+  vertical     String
+  verticalNome String
+  termosBusca  String // JSON: ["revenda de carros", "loja de veículos"]
+  cidade       String
+  uf           String   @default("DF")
+  ativo        Boolean  @default(true)
+  criadoEm     DateTime @default(now())
+
+  @@unique([vertical, cidade])
+  @@index([ativo])
+}
+
+/// Configuração geral do radar.
+model RadarConfig {
+  id                 String   @id @default("singleton")
+  minAvaliacoes      Int      @default(30)
+  redesExcluidas     String   @default("[]") // JSON de strings
+  pesosJson          String   @default("{}") // JSON: pesos do score, explicáveis
+  leadsPorDia        Int      @default(20)
+  metaDiariaEnvios   Int      @default(20)
+  tetoCustoCentavos  Int      @default(1000) // R$ 10 por execução
+  actorMaps          String   @default("compass/crawler-google-places")
+  actorAds           String   @default("")
+  maxResultadosBusca Int      @default(100)
+  atualizadoEm       DateTime @updatedAt
 }
