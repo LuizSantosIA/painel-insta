@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { salvarCredenciais } from "@/lib/instagram-credenciais";
 import { envAlgum, urlBase } from "@/lib/env";
+import { CAMPOS_WEBHOOK } from "@/lib/instagram-token";
 
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code");
@@ -69,7 +70,7 @@ export async function GET(req: NextRequest) {
   });
   if (igUserId) {
     await fetch(
-      `https://graph.instagram.com/v21.0/${igUserId}/subscribed_apps?subscribed_fields=comments,messages&access_token=${longData.access_token}`,
+      `https://graph.instagram.com/v23.0/${igUserId}/subscribed_apps?subscribed_fields=${CAMPOS_WEBHOOK}&access_token=${longData.access_token}`,
       { method: "POST" }
     ).catch(() => {});
   }

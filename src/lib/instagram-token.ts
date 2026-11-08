@@ -72,3 +72,22 @@ export function ehDaPropriaConta(
   const user = (autor.username ?? "").replace(/^@/, "").trim().toLowerCase();
   return Boolean(user && identidade.username && user === identidade.username);
 }
+
+/**
+ * Campos de webhook que a conta precisa ter inscritos.
+ *
+ * `messaging_postbacks` é o que entrega o toque num botão. Sem ele a conta
+ * recebe comentários e mensagens normalmente, mas o clique em "Seguindo"
+ * simplesmente não chega — e a pessoa fica esperando um link que nunca vem.
+ * Foi o que aconteceu até 08/11/2026: só `comments,messages` estavam
+ * inscritos, e 594 pessoas pediram material sem nunca receber.
+ */
+export const CAMPOS_WEBHOOK = "comments,messages,messaging_postbacks";
+
+export const CAMPOS_WEBHOOK_LISTA = CAMPOS_WEBHOOK.split(",");
+
+/** Quais campos obrigatórios estão faltando na inscrição atual. */
+export function camposFaltando(inscritos: string[]): string[] {
+  const tem = new Set(inscritos);
+  return CAMPOS_WEBHOOK_LISTA.filter((c) => !tem.has(c));
+}
